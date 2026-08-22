@@ -4,41 +4,164 @@
   <title>Student Exam Screen</title>
   <script src="/socket.io/socket.io.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; padding: 30px; text-align: center; background: #f9fafb; }
-    textarea { width: 80%; height: 160px; font-size: 15px; padding: 10px; margin-top: 15px; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #1e293b, #334155);
+    }
+
+    /* Login Screen */
+    #loginScreen {
+      background: #ffffff;
+      padding: 40px;
+      border-radius: 16px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+      width: 360px;
+      text-align: center;
+    }
+    #loginScreen h2 { margin-top: 0; color: #1e293b; }
+    #loginScreen input {
+      width: 100%;
+      padding: 12px;
+      margin: 10px 0;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 15px;
+    }
+    #loginScreen button {
+      width: 100%;
+      padding: 12px;
+      margin-top: 10px;
+      background: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+    #loginScreen button:hover { background: #1d4ed8; }
+
+    /* Exam Screen */
+    #examScreen {
+      display: none;
+      background: #ffffff;
+      padding: 40px;
+      border-radius: 16px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+      width: 600px;
+      max-width: 90vw;
+    }
+    #examScreen h2 { margin-top: 0; color: #1e293b; text-align: center; }
+    .student-badge {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      color: #1e3a8a;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 14px;
+      margin-bottom: 15px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .warning {
+      background: #fef2f2;
+      border-left: 4px solid #dc2626;
+      color: #991b1b;
+      padding: 10px 14px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 15px;
+    }
+    textarea {
+      width: 100%;
+      height: 200px;
+      font-size: 15px;
+      padding: 14px;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      resize: vertical;
+      font-family: inherit;
+    }
   </style>
 </head>
 <body>
-  <h2>Online Examination Portal</h2>
-  <p style="color: #dc2626; font-weight: bold;">Warning: Copying text or switching tabs triggers an automatic alert!</p>
-  <textarea id="answerBox" placeholder="Type your answers here..."></textarea>
+
+  <!-- Login Screen -->
+  <div id="loginScreen">
+    <h2>🎓 Exam Login</h2>
+    <input type="text" id="nameInput" placeholder="Full Name" />
+    <input type="text" id="regInput" placeholder="Register Number" />
+    <button onclick="startExam()">Start Exam</button>
+  </div>
+
+  <!-- Exam Screen -->
+  <div id="examScreen">
+    <h2>Online Examination Portal</h2>
+    <div class="student-badge">
+      <span id="badgeName"></span>
+      <span id="badgeReg"></span>
+    </div>
+    <div class="warning">⚠️ Copying text or switching tabs triggers an automatic alert!</div>
+    <textarea id="answerBox" placeholder="Type your answers here..."></textarea>
+  </div>
 
   <script>
     const socket = io();
-    const studentName = "Student_01";
+    let studentName = "";
+    let studentReg = "";
+
+    function startExam() {
+      const name = document.getElementById('nameInput').value.trim();
+      const reg = document.getElementById('regInput').value.trim();
+
+      if (!name || !reg) {
+        alert("Please enter both Name and Register Number.");
+        return;
+      }
+
+      studentName = name;
+      studentReg = reg;
+
+      document.getElementById('badgeName').textContent = "👤 " + studentName;
+      document.getElementById('badgeReg').textContent = "🆔 " + studentReg;
+
+      document.getElementById('loginScreen').style.display = 'none';
+      document.getElementById('examScreen').style.display = 'block';
+    }
 
     function sendAlert(type) {
+      if (!studentName) return; // don't send alerts before login
       socket.emit('student-alert', {
         student: studentName,
+        regNo: studentReg,
         violation: type,
         time: new Date().toLocaleTimeString()
       });
     }
 
     document.addEventListener('copy', (e) => {
+      if (!studentName) return;
       e.preventDefault();
       sendAlert("Attempted Copy Action");
       alert("Copying text is prohibited during exams!");
     });
 
     document.addEventListener('paste', (e) => {
+      if (!studentName) return;
       e.preventDefault();
       sendAlert("Attempted Paste Action");
       alert("Pasting text is prohibited during exams!");
     });
 
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden) {
+      if (document.hidden && studentName) {
         sendAlert("Switched Tab / Window");
       }
     });
