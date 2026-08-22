@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Teacher Live Dashboard</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 25px; background: #f1f5f9; }
+    .alert-card { background: #fee2e2; border-left: 6px solid #ef4444; padding: 15px; margin-bottom: 12px; }
+    h1 { color: #1e293b; }
+  </style>
+</head>
+<body>
+  <h1>Teacher Live Cloud Monitoring Dashboard</h1>
+  <h3>Real-Time Violation Feed:</h3>
+  <div id="alertContainer"></div>
+
+  <script>
+    const socket = io();
+    const container = document.getElementById('alertContainer');
+
+    socket.on('teacher-notification', (data) => {
+      const card = document.createElement('div');
+      card.className = 'alert-card';
+      card.innerHTML = `
+        <h4 style="margin:0 0 5px 0; color:#991b1b;">⚠️ Violation Detected!</h4>
+        <p style="margin:2px 0;"><strong>Student:</strong> ${data.student}</p>
+        <p style="margin:2px 0;"><strong>Action:</strong> ${data.violation}</p>
+        <p style="margin:2px 0;"><strong>Timestamp:</strong> ${data.time}</p>
+      `;
+      container.prepend(card);
+    });
+  </script>
+</body>
+</html>

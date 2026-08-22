@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Student Exam Screen</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 30px; text-align: center; background: #f9fafb; }
+    textarea { width: 80%; height: 160px; font-size: 15px; padding: 10px; margin-top: 15px; }
+  </style>
+</head>
+<body>
+  <h2>Online Examination Portal</h2>
+  <p style="color: #dc2626; font-weight: bold;">Warning: Copying text or switching tabs triggers an automatic alert!</p>
+  <textarea id="answerBox" placeholder="Type your answers here..."></textarea>
+
+  <script>
+    const socket = io();
+    const studentName = "Student_01";
+
+    function sendAlert(type) {
+      socket.emit('student-alert', {
+        student: studentName,
+        violation: type,
+        time: new Date().toLocaleTimeString()
+      });
+    }
+
+    document.addEventListener('copy', (e) => {
+      e.preventDefault();
+      sendAlert("Attempted Copy Action");
+      alert("Copying text is prohibited during exams!");
+    });
+
+    document.addEventListener('paste', (e) => {
+      e.preventDefault();
+      sendAlert("Attempted Paste Action");
+      alert("Pasting text is prohibited during exams!");
+    });
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        sendAlert("Switched Tab / Window");
+      }
+    });
+  </script>
+</body>
+</html>
