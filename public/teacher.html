@@ -4,21 +4,221 @@
   <title>Teacher Live Dashboard</title>
   <script src="/socket.io/socket.io.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; padding: 25px; background: #f1f5f9; }
-    .alert-card { background: #fee2e2; border-left: 6px solid #ef4444; padding: 15px; margin-bottom: 12px; }
-    h1 { color: #1e293b; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      margin: 0;
+      background: #f1f5f9;
+      min-height: 100vh;
+    }
+
+    /* Login Screen */
+    #loginScreen {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #1e293b, #334155);
+    }
+    #loginCard {
+      background: #ffffff;
+      padding: 40px;
+      border-radius: 16px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+      width: 360px;
+      text-align: center;
+    }
+    #loginCard h2 { margin-top: 0; color: #1e293b; }
+    #loginCard input {
+      width: 100%;
+      padding: 12px;
+      margin: 10px 0;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 15px;
+    }
+    #loginCard button {
+      width: 100%;
+      padding: 12px;
+      margin-top: 10px;
+      background: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    #loginCard button:hover { background: #1d4ed8; }
+    #loginError { color: #dc2626; font-size: 14px; margin-top: 10px; min-height: 18px; }
+    #showResetLink { color: #2563eb; font-size: 13px; cursor: pointer; margin-top: 15px; display: inline-block; }
+
+    #resetBox { display: none; margin-top: 15px; border-top: 1px solid #e2e8f0; padding-top: 15px; }
+
+    /* Dashboard */
+    #dashboard { display: none; padding: 25px; max-width: 1000px; margin: 0 auto; }
+    .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    h1 { color: #1e293b; margin: 0; }
+    .panel {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 25px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .panel h3 { margin-top: 0; color: #1e293b; }
+
+    .q-row { display: flex; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid #f1f5f9; }
+    .q-text { flex: 1; }
+    .q-row button { border: none; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 13px; }
+    .edit-btn { background: #fef3c7; color: #92400e; }
+    .delete-btn { background: #fee2e2; color: #991b1b; }
+
+    #newQuestionInput {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 14px;
+      margin-bottom: 10px;
+      resize: vertical;
+      min-height: 60px;
+      font-family: inherit;
+    }
+    #addQuestionBtn {
+      background: #16a34a;
+      color: white;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    .alert-card { background: #fee2e2; border-left: 6px solid #ef4444; padding: 15px; margin-bottom: 12px; border-radius: 6px; }
+    .logout-btn { background: #64748b; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; }
   </style>
 </head>
 <body>
-  <h1>Teacher Live Cloud Monitoring Dashboard</h1>
-  <h3>Real-Time Violation Feed:</h3>
-  <div id="alertContainer"></div>
+
+  <!-- Login Screen -->
+  <div id="loginScreen">
+    <div id="loginCard">
+      <h2>🔒 Teacher Login</h2>
+      <input type="password" id="passkeyInput" placeholder="Enter Passkey" />
+      <button onclick="tryLogin()">Login</button>
+      <div id="loginError"></div>
+      <div id="showResetLink" onclick="toggleReset()">Forgot / Reset Passkey?</div>
+
+      <div id="resetBox">
+        <input type="password" id="oldPasskeyInput" placeholder="Old Passkey" />
+        <input type="password" id="newPasskeyInput" placeholder="New Passkey (min 4 chars)" />
+        <button onclick="tryReset()">Reset Passkey</button>
+        <div id="resetError" style="color:#dc2626; font-size:13px; margin-top:8px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dashboard -->
+  <div id="dashboard">
+    <div class="topbar">
+      <h1>Teacher Live Cloud Monitoring Dashboard</h1>
+      <button class="logout-btn" onclick="location.reload()">Logout</button>
+    </div>
+
+    <div class="panel">
+      <h3>📝 Manage Questions</h3>
+      <textarea id="newQuestionInput" placeholder="Type a new question here..."></textarea>
+      <button id="addQuestionBtn" onclick="addQuestion()">Add Question</button>
+      <div id="questionList" style="margin-top:15px;"></div>
+    </div>
+
+    <div class="panel">
+      <h3>🚨 Real-Time Violation Feed</h3>
+      <div id="alertContainer"></div>
+    </div>
+  </div>
 
   <script>
     const socket = io();
-    const container = document.getElementById('alertContainer');
+    let editingId = null;
+
+    function toggleReset() {
+      const box = document.getElementById('resetBox');
+      box.style.display = box.style.display === 'block' ? 'none' : 'block';
+    }
+
+    function tryLogin() {
+      const passkey = document.getElementById('passkeyInput').value;
+      socket.emit('teacher-login', passkey, (res) => {
+        if (res.success) {
+          document.getElementById('loginScreen').style.display = 'none';
+          document.getElementById('dashboard').style.display = 'block';
+        } else {
+          document.getElementById('loginError').textContent = res.message;
+        }
+      });
+    }
+
+    function tryReset() {
+      const oldPasskey = document.getElementById('oldPasskeyInput').value;
+      const newPasskey = document.getElementById('newPasskeyInput').value;
+      socket.emit('teacher-reset-passkey', { oldPasskey, newPasskey }, (res) => {
+        const errorEl = document.getElementById('resetError');
+        if (res.success) {
+          errorEl.style.color = '#16a34a';
+          errorEl.textContent = "Passkey updated! You can now log in with the new passkey.";
+        } else {
+          errorEl.style.color = '#dc2626';
+          errorEl.textContent = res.message;
+        }
+      });
+    }
+
+    function addQuestion() {
+      const input = document.getElementById('newQuestionInput');
+      const text = input.value.trim();
+      if (!text) return;
+
+      if (editingId !== null) {
+        socket.emit('edit-question', { id: editingId, text });
+        editingId = null;
+        document.getElementById('addQuestionBtn').textContent = 'Add Question';
+      } else {
+        socket.emit('add-question', text);
+      }
+      input.value = '';
+    }
+
+    function startEdit(id, currentText) {
+      editingId = id;
+      document.getElementById('newQuestionInput').value = currentText;
+      document.getElementById('addQuestionBtn').textContent = 'Save Edit';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function deleteQuestion(id) {
+      if (confirm('Delete this question?')) {
+        socket.emit('delete-question', id);
+      }
+    }
+
+    socket.on('questions-updated', (questions) => {
+      const list = document.getElementById('questionList');
+      if (questions.length === 0) {
+        list.innerHTML = '<p style="color:#94a3b8;">No questions added yet.</p>';
+        return;
+      }
+      list.innerHTML = questions.map(q => `
+        <div class="q-row">
+          <div class="q-text">${q.text}</div>
+          <button class="edit-btn" onclick='startEdit(${q.id}, ${JSON.stringify(q.text)})'>Edit</button>
+          <button class="delete-btn" onclick="deleteQuestion(${q.id})">Delete</button>
+        </div>
+      `).join('');
+    });
 
     socket.on('teacher-notification', (data) => {
+      const container = document.getElementById('alertContainer');
       const card = document.createElement('div');
       card.className = 'alert-card';
       card.innerHTML = `

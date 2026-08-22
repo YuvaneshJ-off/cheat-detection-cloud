@@ -54,7 +54,7 @@
       padding: 40px;
       border-radius: 16px;
       box-shadow: 0 10px 40px rgba(0,0,0,0.3);
-      width: 600px;
+      width: 650px;
       max-width: 90vw;
     }
     #examScreen h2 { margin-top: 0; color: #1e293b; text-align: center; }
@@ -79,9 +79,31 @@
       font-weight: 600;
       margin-bottom: 15px;
     }
+
+    #questionBox {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 15px;
+      max-height: 260px;
+      overflow-y: auto;
+    }
+    #questionBox h4 { margin: 0 0 10px 0; color: #1e293b; }
+    .question-item {
+      background: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      font-size: 14px;
+      color: #334155;
+    }
+    .no-questions { color: #94a3b8; font-size: 14px; font-style: italic; }
+
     textarea {
       width: 100%;
-      height: 200px;
+      height: 180px;
       font-size: 15px;
       padding: 14px;
       border: 1px solid #cbd5e1;
@@ -109,6 +131,12 @@
       <span id="badgeReg"></span>
     </div>
     <div class="warning">⚠️ Copying text or switching tabs triggers an automatic alert!</div>
+
+    <div id="questionBox">
+      <h4>📋 Questions</h4>
+      <div id="questionList"><p class="no-questions">Waiting for teacher to post questions...</p></div>
+    </div>
+
     <textarea id="answerBox" placeholder="Type your answers here..."></textarea>
   </div>
 
@@ -137,7 +165,7 @@
     }
 
     function sendAlert(type) {
-      if (!studentName) return; // don't send alerts before login
+      if (!studentName) return;
       socket.emit('student-alert', {
         student: studentName,
         regNo: studentReg,
@@ -164,6 +192,18 @@
       if (document.hidden && studentName) {
         sendAlert("Switched Tab / Window");
       }
+    });
+
+    // Receive live questions from the teacher
+    socket.on('questions-updated', (questions) => {
+      const list = document.getElementById('questionList');
+      if (!questions || questions.length === 0) {
+        list.innerHTML = '<p class="no-questions">Waiting for teacher to post questions...</p>';
+        return;
+      }
+      list.innerHTML = questions.map((q, i) => `
+        <div class="question-item"><strong>Q${i + 1}.</strong> ${q.text}</div>
+      `).join('');
     });
   </script>
 </body>
