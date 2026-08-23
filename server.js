@@ -119,7 +119,6 @@ io.on('connection', async (socket) => {
     io.emit('questions-updated', questions);
   });
 
-  // Student submits answers
   socket.on('submit-answers', async (data, callback) => {
     if (!submissionsCollection) {
       if (callback) callback({ success: false, message: "Database not ready, try again." });
@@ -135,6 +134,28 @@ io.on('connection', async (socket) => {
     const submissions = await submissionsCollection.find().sort({ _id: -1 }).toArray();
     io.emit('submissions-updated', submissions);
     if (callback) callback({ success: true });
+  });
+});
+
+// ====== Hardware Integration (ESP32 RFID) ======
+app.use(express.json());
+
+app.post("/api/hardware/rfid", (req, res) => {
+  const { uid } = req.body;
+  if (!uid) {
+    return res.status(400).json({
+      ok: false,
+      message: "RFID UID is required"
+    });
+  }
+  console.log("Hardware RFID:", uid);
+  io.emit("hardwareStudentDetected", {
+    uid: uid,
+    time: new Date().toISOString()
+  });
+  res.json({
+    ok: true,
+    message: "RFID received"
   });
 });
 
