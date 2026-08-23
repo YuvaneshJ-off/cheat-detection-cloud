@@ -20,6 +20,7 @@ const client = new MongoClient(MONGO_URI);
 let questionsCollection;
 let violationsCollection;
 let settingsCollection;
+let submissionsCollection;
 
 let teacherPasskey = "admin123";
 
@@ -30,6 +31,7 @@ async function connectDB() {
     questionsCollection = db.collection("questions");
     violationsCollection = db.collection("violations");
     settingsCollection = db.collection("settings");
+    submissionsCollection = db.collection("submissions");
 
     const savedSettings = await settingsCollection.findOne({ _id: "teacherConfig" });
     if (savedSettings && savedSettings.passkey) {
@@ -52,6 +54,11 @@ io.on('connection', async (socket) => {
   if (questionsCollection) {
     const questions = await questionsCollection.find().sort({ _id: 1 }).toArray();
     socket.emit('questions-updated', questions);
+  }
+
+  if (submissionsCollection) {
+    const submissions = await submissionsCollection.find().sort({ _id: -1 }).toArray();
+    socket.emit('submissions-updated', submissions);
   }
 
   socket.on('student-alert', async (data) => {
@@ -110,6 +117,24 @@ io.on('connection', async (socket) => {
     await questionsCollection.deleteOne({ _id: new ObjectId(id) });
     const questions = await questionsCollection.find().sort({ _id: 1 }).toArray();
     io.emit('questions-updated', questions);
+  });
+
+  // Student submits answers
+  socket.on('submit-answers', async (data, callback) => {
+    if (!submissionsCollection) {
+      if (callback) callback({ success: false, message: "Database not ready, try again." });
+      return;
+    }
+    const submission = {
+      student: data.student,
+      regNo: data.regNo,
+      answers: data.answers,
+      submittedAt: new Date().toLocaleString()
+    };
+    await submissionsCollection.insertOne(submission);
+    const submissions = await submissionsCollection.find().sort({ _id: -1 }).toArray();
+    io.emit('submissions-updated', submissions);
+    if (callback) callback({ success: true });
   });
 });
 

@@ -12,7 +12,6 @@
       min-height: 100vh;
     }
 
-    /* Login Screen */
     #loginScreen {
       min-height: 100vh;
       display: flex;
@@ -54,7 +53,6 @@
 
     #resetBox { display: none; margin-top: 15px; border-top: 1px solid #e2e8f0; padding-top: 15px; }
 
-    /* Dashboard */
     #dashboard { display: none; padding: 25px; max-width: 1000px; margin: 0 auto; }
     .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
     h1 { color: #1e293b; margin: 0; }
@@ -96,11 +94,24 @@
 
     .alert-card { background: #fee2e2; border-left: 6px solid #ef4444; padding: 15px; margin-bottom: 12px; border-radius: 6px; }
     .logout-btn { background: #64748b; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; }
+
+    .submission-card {
+      background: #f0fdf4;
+      border-left: 6px solid #16a34a;
+      border-radius: 6px;
+      padding: 15px;
+      margin-bottom: 12px;
+    }
+    .submission-card .sub-header { font-weight: 600; color: #14532d; margin-bottom: 8px; }
+    .submission-card .sub-time { font-size: 12px; color: #64748b; margin-bottom: 10px; }
+    .submission-card .qa-pair { background: white; border-radius: 6px; padding: 10px; margin-bottom: 6px; font-size: 14px; }
+    .submission-card .qa-pair .q { font-weight: 600; color: #1e293b; }
+    .submission-card .qa-pair .a { color: #334155; margin-top: 4px; }
+    .no-submissions { color: #94a3b8; font-size: 14px; font-style: italic; }
   </style>
 </head>
 <body>
 
-  <!-- Login Screen -->
   <div id="loginScreen">
     <div id="loginCard">
       <h2>🔒 Teacher Login</h2>
@@ -118,7 +129,6 @@
     </div>
   </div>
 
-  <!-- Dashboard -->
   <div id="dashboard">
     <div class="topbar">
       <h1>Teacher Live Cloud Monitoring Dashboard</h1>
@@ -130,6 +140,11 @@
       <textarea id="newQuestionInput" placeholder="Type a new question here..."></textarea>
       <button id="addQuestionBtn" onclick="addQuestion()">Add Question</button>
       <div id="questionList" style="margin-top:15px;"></div>
+    </div>
+
+    <div class="panel">
+      <h3>📥 Student Submissions</h3>
+      <div id="submissionList"><p class="no-submissions">No submissions yet.</p></div>
     </div>
 
     <div class="panel">
@@ -213,6 +228,26 @@
           <div class="q-text">${q.text}</div>
           <button class="edit-btn" onclick='startEdit(${JSON.stringify(q._id)}, ${JSON.stringify(q.text)})'>Edit</button>
           <button class="delete-btn" onclick='deleteQuestion(${JSON.stringify(q._id)})'>Delete</button>
+        </div>
+      `).join('');
+    });
+
+    socket.on('submissions-updated', (submissions) => {
+      const list = document.getElementById('submissionList');
+      if (!submissions || submissions.length === 0) {
+        list.innerHTML = '<p class="no-submissions">No submissions yet.</p>';
+        return;
+      }
+      list.innerHTML = submissions.map(sub => `
+        <div class="submission-card">
+          <div class="sub-header">👤 ${sub.student} &nbsp; 🆔 ${sub.regNo}</div>
+          <div class="sub-time">Submitted: ${sub.submittedAt}</div>
+          ${sub.answers.map((a, i) => `
+            <div class="qa-pair">
+              <div class="q">Q${i + 1}. ${a.questionText}</div>
+              <div class="a">${a.answerText || '<i>(No answer given)</i>'}</div>
+            </div>
+          `).join('')}
         </div>
       `).join('');
     });

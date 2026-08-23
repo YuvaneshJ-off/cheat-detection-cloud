@@ -13,9 +13,9 @@
       align-items: center;
       justify-content: center;
       background: linear-gradient(135deg, #1e293b, #334155);
+      padding: 20px 0;
     }
 
-    /* Login Screen */
     #loginScreen {
       background: #ffffff;
       padding: 40px;
@@ -43,11 +43,9 @@
       border-radius: 8px;
       font-size: 16px;
       cursor: pointer;
-      transition: 0.2s;
     }
     #loginScreen button:hover { background: #1d4ed8; }
 
-    /* Exam Screen */
     #examScreen {
       display: none;
       background: #ffffff;
@@ -80,42 +78,43 @@
       margin-bottom: 15px;
     }
 
-    #questionBox {
+    .qa-block {
       background: #f8fafc;
       border: 1px solid #e2e8f0;
       border-radius: 10px;
       padding: 16px;
       margin-bottom: 15px;
-      max-height: 260px;
-      overflow-y: auto;
     }
-    #questionBox h4 { margin: 0 0 10px 0; color: #1e293b; }
-    .question-item {
-      background: white;
-      border: 1px solid #e2e8f0;
-      border-radius: 8px;
-      padding: 10px 12px;
-      margin-bottom: 8px;
-      font-size: 14px;
-      color: #334155;
-    }
-    .no-questions { color: #94a3b8; font-size: 14px; font-style: italic; }
-
-    textarea {
+    .qa-block .q-text { font-weight: 600; color: #1e293b; margin-bottom: 8px; }
+    .qa-block textarea {
       width: 100%;
-      height: 180px;
-      font-size: 15px;
-      padding: 14px;
+      height: 80px;
+      font-size: 14px;
+      padding: 10px;
       border: 1px solid #cbd5e1;
-      border-radius: 10px;
+      border-radius: 8px;
       resize: vertical;
       font-family: inherit;
     }
+    .no-questions { color: #94a3b8; font-size: 14px; font-style: italic; }
+
+    #submitBtn {
+      width: 100%;
+      padding: 14px;
+      background: #16a34a;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    #submitBtn:hover { background: #15803d; }
+    #submitStatus { text-align: center; margin-top: 10px; font-size: 14px; min-height: 20px; }
   </style>
 </head>
 <body>
 
-  <!-- Login Screen -->
   <div id="loginScreen">
     <h2>🎓 Exam Login</h2>
     <input type="text" id="nameInput" placeholder="Full Name" />
@@ -123,7 +122,6 @@
     <button onclick="startExam()">Start Exam</button>
   </div>
 
-  <!-- Exam Screen -->
   <div id="examScreen">
     <h2>Online Examination Portal</h2>
     <div class="student-badge">
@@ -132,18 +130,20 @@
     </div>
     <div class="warning">⚠️ Copying text or switching tabs triggers an automatic alert!</div>
 
-    <div id="questionBox">
-      <h4>📋 Questions</h4>
-      <div id="questionList"><p class="no-questions">Waiting for teacher to post questions...</p></div>
+    <div id="questionArea">
+      <p class="no-questions">Waiting for teacher to post questions...</p>
     </div>
 
-    <textarea id="answerBox" placeholder="Type your answers here..."></textarea>
+    <button id="submitBtn" onclick="submitAnswers()">Submit Answers</button>
+    <div id="submitStatus"></div>
   </div>
 
   <script>
     const socket = io();
     let studentName = "";
     let studentReg = "";
+    let currentQuestions = [];
+    let alreadySubmitted = false;
 
     function startExam() {
       const name = document.getElementById('nameInput').value.trim();
@@ -162,6 +162,8 @@
 
       document.getElementById('loginScreen').style.display = 'none';
       document.getElementById('examScreen').style.display = 'block';
+
+      renderQuestions();
     }
 
     function sendAlert(type) {
@@ -194,17 +196,59 @@
       }
     });
 
-    // Receive live questions from the teacher
     socket.on('questions-updated', (questions) => {
-      const list = document.getElementById('questionList');
-      if (!questions || questions.length === 0) {
-        list.innerHTML = '<p class="no-questions">Waiting for teacher to post questions...</p>';
+      currentQuestions = questions;
+      if (studentName) renderQuestions();
+    });
+
+    function renderQuestions() {
+      const area = document.getElementById('questionArea');
+      if (!currentQuestions || currentQuestions.length === 0) {
+        area.innerHTML = '<p class="no-questions">Waiting for teacher to post questions...</p>';
         return;
       }
-      list.innerHTML = questions.map((q, i) => `
-        <div class="question-item"><strong>Q${i + 1}.</strong> ${q.text}</div>
+      area.innerHTML = currentQuestions.map((q, i) => `
+        <div class="qa-block">
+          <div class="q-text">Q${i + 1}. ${q.text}</div>
+          <textarea id="answer-${q._id}" placeholder="Type your answer here..."></textarea>
+        </div>
       `).join('');
-    });
+    }
+
+    function submitAnswers() {
+      if (alreadySubmitted) {
+        alert("You have already submitted your answers.");
+        return;
+      }
+      if (!currentQuestions || currentQuestions.length === 0) {
+        alert("No questions to answer yet.");
+        return;
+      }
+
+      const answers = currentQuestions.map(q => ({
+        questionId: q._id,
+        questionText: q.text,
+        answerText: document.getElementById('answer-' + q._id).value.trim()
+      }));
+
+      socket.emit('submit-answers', {
+        student: studentName,
+        regNo: studentReg,
+        answers: answers
+      }, (res) => {
+        const statusEl = document.getElementById('submitStatus');
+        if (res && res.success) {
+          alreadySubmitted = true;
+          statusEl.style.color = '#16a34a';
+          statusEl.textContent = "✅ Answers submitted successfully!";
+          document.getElementById('submitBtn').disabled = true;
+          document.getElementById('submitBtn').style.opacity = '0.6';
+        } else {
+          statusEl.style.color = '#dc2626';
+          statusEl.textContent = "❌ Submission failed. Try again.";
+        }
+      });
+    }
   </script>
 </body>
 </html>
