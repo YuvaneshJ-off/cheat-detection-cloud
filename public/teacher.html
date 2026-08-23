@@ -211,8 +211,8 @@
       list.innerHTML = questions.map(q => `
         <div class="q-row">
           <div class="q-text">${q.text}</div>
-          <button class="edit-btn" onclick='startEdit(${q.id}, ${JSON.stringify(q.text)})'>Edit</button>
-          <button class="delete-btn" onclick="deleteQuestion(${q.id})">Delete</button>
+          <button class="edit-btn" onclick='startEdit(${JSON.stringify(q._id)}, ${JSON.stringify(q.text)})'>Edit</button>
+          <button class="delete-btn" onclick='deleteQuestion(${JSON.stringify(q._id)})'>Delete</button>
         </div>
       `).join('');
     });

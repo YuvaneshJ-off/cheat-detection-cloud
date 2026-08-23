@@ -2,6 +2,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
+const { MongoClient, ObjectId } = require('mongodb');
 
 const app = express();
 app.use(cors());
@@ -12,23 +13,54 @@ const io = new Server(server, {
   cors: { origin: "*" }
 });
 
-// In-memory data (resets if the server restarts)
-let questions = [];
-let questionIdCounter = 1;
-let teacherPasskey = "admin123"; // default passkey — change it after first login!
+// ====== MongoDB Setup ======
+const MONGO_URI = "mongodb+srv://yuvaneshoffia1_db_user:eYul5Bjat9d2DVYP@cluster0.pabnxio.mongodb.net/?appName=Cluster0";
 
-io.on('connection', (socket) => {
+const client = new MongoClient(MONGO_URI);
+let questionsCollection;
+let violationsCollection;
+let settingsCollection;
+
+let teacherPasskey = "admin123";
+
+async function connectDB() {
+  try {
+    await client.connect();
+    const db = client.db("cheatDetectionDB");
+    questionsCollection = db.collection("questions");
+    violationsCollection = db.collection("violations");
+    settingsCollection = db.collection("settings");
+
+    const savedSettings = await settingsCollection.findOne({ _id: "teacherConfig" });
+    if (savedSettings && savedSettings.passkey) {
+      teacherPasskey = savedSettings.passkey;
+    } else {
+      await settingsCollection.insertOne({ _id: "teacherConfig", passkey: teacherPasskey });
+    }
+
+    console.log("Connected to MongoDB Atlas");
+  } catch (err) {
+    console.error("MongoDB connection error:", err);
+  }
+}
+connectDB();
+
+// ====== Socket.io Logic ======
+io.on('connection', async (socket) => {
   console.log('Client connected to WebSocket server');
 
-  // Send the current question list to whoever just connected
-  socket.emit('questions-updated', questions);
+  if (questionsCollection) {
+    const questions = await questionsCollection.find().sort({ _id: 1 }).toArray();
+    socket.emit('questions-updated', questions);
+  }
 
-  // Student violation alerts
-  socket.on('student-alert', (data) => {
+  socket.on('student-alert', async (data) => {
     io.emit('teacher-notification', data);
+    if (violationsCollection) {
+      await violationsCollection.insertOne(data);
+    }
   });
 
-  // Teacher login
   socket.on('teacher-login', (passkey, callback) => {
     if (passkey === teacherPasskey) {
       callback({ success: true });
@@ -37,8 +69,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Teacher reset passkey (needs old passkey to confirm)
-  socket.on('teacher-reset-passkey', ({ oldPasskey, newPasskey }, callback) => {
+  socket.on('teacher-reset-passkey', async ({ oldPasskey, newPasskey }, callback) => {
     if (oldPasskey !== teacherPasskey) {
       callback({ success: false, message: "Old passkey is incorrect" });
       return;
@@ -48,29 +79,36 @@ io.on('connection', (socket) => {
       return;
     }
     teacherPasskey = newPasskey.trim();
+    if (settingsCollection) {
+      await settingsCollection.updateOne(
+        { _id: "teacherConfig" },
+        { $set: { passkey: teacherPasskey } }
+      );
+    }
     callback({ success: true });
   });
 
-  // Add a new question
-  socket.on('add-question', (text) => {
-    if (!text || !text.trim()) return;
-    const question = { id: questionIdCounter++, text: text.trim() };
-    questions.push(question);
+  socket.on('add-question', async (text) => {
+    if (!text || !text.trim() || !questionsCollection) return;
+    await questionsCollection.insertOne({ text: text.trim() });
+    const questions = await questionsCollection.find().sort({ _id: 1 }).toArray();
     io.emit('questions-updated', questions);
   });
 
-  // Edit an existing question
-  socket.on('edit-question', ({ id, text }) => {
-    const q = questions.find(q => q.id === id);
-    if (q && text && text.trim()) {
-      q.text = text.trim();
-      io.emit('questions-updated', questions);
-    }
+  socket.on('edit-question', async ({ id, text }) => {
+    if (!questionsCollection) return;
+    await questionsCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: { text: text.trim() } }
+    );
+    const questions = await questionsCollection.find().sort({ _id: 1 }).toArray();
+    io.emit('questions-updated', questions);
   });
 
-  // Delete a question
-  socket.on('delete-question', (id) => {
-    questions = questions.filter(q => q.id !== id);
+  socket.on('delete-question', async (id) => {
+    if (!questionsCollection) return;
+    await questionsCollection.deleteOne({ _id: new ObjectId(id) });
+    const questions = await questionsCollection.find().sort({ _id: 1 }).toArray();
     io.emit('questions-updated', questions);
   });
 });
