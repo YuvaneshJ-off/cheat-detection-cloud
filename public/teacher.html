@@ -82,7 +82,24 @@
       min-height: 60px;
       font-family: inherit;
     }
-    #addQuestionBtn {
+    
+    .timer-control-box {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #e2e8f0;
+    }
+    .timer-control-box input {
+      width: 180px;
+      padding: 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+
+    #addQuestionBtn, .action-btn {
       background: #16a34a;
       color: white;
       border: none;
@@ -92,7 +109,18 @@
       font-size: 14px;
     }
 
-    .alert-card { background: #fee2e2; border-left: 6px solid #ef4444; padding: 15px; margin-bottom: 12px; border-radius: 6px; }
+    .alert-card {
+      background: #fee2e2;
+      border-left: 6px solid #ef4444;
+      padding: 15px;
+      margin-bottom: 12px;
+      border-radius: 6px;
+      animation: slideIn 0.3s ease-out;
+    }
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
     .logout-btn { background: #64748b; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; }
 
     .submission-card {
@@ -107,7 +135,7 @@
     .submission-card .qa-pair { background: white; border-radius: 6px; padding: 10px; margin-bottom: 6px; font-size: 14px; }
     .submission-card .qa-pair .q { font-weight: 600; color: #1e293b; }
     .submission-card .qa-pair .a { color: #334155; margin-top: 4px; }
-    .no-submissions { color: #94a3b8; font-size: 14px; font-style: italic; }
+    .no-submissions, .no-alerts { color: #94a3b8; font-size: 14px; font-style: italic; }
   </style>
 </head>
 <body>
@@ -136,9 +164,18 @@
     </div>
 
     <div class="panel">
-      <h3>📝 Manage Questions</h3>
+      <h3>📝 Manage Questions & Exam Controls</h3>
       <textarea id="newQuestionInput" placeholder="Type a new question here..."></textarea>
-      <button id="addQuestionBtn" onclick="addQuestion()">Add Question</button>
+      <div>
+        <button id="addQuestionBtn" onclick="addQuestion()">Add Question</button>
+      </div>
+
+      <div class="timer-control-box">
+        <input type="number" id="timerInput" placeholder="Exam duration (mins)" min="1" />
+        <button class="action-btn" onclick="setExamTimer()">⏱️ Set & Broadcast Timer</button>
+        <span id="timerStatus" style="font-size:13px; font-weight:600;"></span>
+      </div>
+
       <div id="questionList" style="margin-top:15px;"></div>
     </div>
 
@@ -149,7 +186,7 @@
 
     <div class="panel">
       <h3>🚨 Real-Time Violation Feed</h3>
-      <div id="alertContainer"></div>
+      <div id="alertContainer"><p class="no-alerts">No violations detected yet.</p></div>
     </div>
   </div>
 
@@ -217,6 +254,19 @@
       }
     }
 
+    function setExamTimer() {
+      const duration = parseInt(document.getElementById('timerInput').value);
+      if (!duration || duration <= 0) {
+        alert("Please enter a valid duration in minutes.");
+        return;
+      }
+      socket.emit('start-timer', duration);
+      const statusEl = document.getElementById('timerStatus');
+      statusEl.style.color = '#16a34a';
+      statusEl.textContent = `✅ Timer set to ${duration} mins!`;
+      setTimeout(() => { statusEl.textContent = ''; }, 4000);
+    }
+
     socket.on('questions-updated', (questions) => {
       const list = document.getElementById('questionList');
       if (questions.length === 0) {
@@ -254,6 +304,10 @@
 
     socket.on('teacher-notification', (data) => {
       const container = document.getElementById('alertContainer');
+      
+      const emptyText = container.querySelector('.no-alerts');
+      if (emptyText) emptyText.remove();
+
       const card = document.createElement('div');
       card.className = 'alert-card';
       card.innerHTML = `
