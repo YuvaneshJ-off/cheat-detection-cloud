@@ -9,19 +9,11 @@ app.use(cors());
 app.use(express.static('public'));
 
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: { origin: "*" }
-});
+const io = new Server(server, { cors: { origin: "*" } });
 
-// ====== MongoDB Setup ======
 const MONGO_URI = "mongodb+srv://yuvaneshoffia1_db_user:eYul5Bjat9d2DVYP@cluster0.pabnxio.mongodb.net/?appName=Cluster0";
-
 const client = new MongoClient(MONGO_URI);
-let questionsCollection;
-let violationsCollection;
-let settingsCollection;
-let submissionsCollection;
-
+let questionsCollection, violationsCollection, settingsCollection, submissionsCollection;
 let teacherPasskey = "admin123";
 
 async function connectDB() {
@@ -39,7 +31,6 @@ async function connectDB() {
     } else {
       await settingsCollection.insertOne({ _id: "teacherConfig", passkey: teacherPasskey });
     }
-
     console.log("Connected to MongoDB Atlas");
   } catch (err) {
     console.error("MongoDB connection error:", err);
@@ -47,7 +38,6 @@ async function connectDB() {
 }
 connectDB();
 
-// ====== Socket.io Logic ======
 io.on('connection', async (socket) => {
   console.log('Client connected to WebSocket server');
 
@@ -60,6 +50,10 @@ io.on('connection', async (socket) => {
     const submissions = await submissionsCollection.find().sort({ _id: -1 }).toArray();
     socket.emit('submissions-updated', submissions);
   }
+
+  socket.on('start-timer', (durationMinutes) => {
+    io.emit('start-timer', durationMinutes);
+  });
 
   socket.on('student-alert', async (data) => {
     io.emit('teacher-notification', data);
@@ -137,7 +131,6 @@ io.on('connection', async (socket) => {
   });
 });
 
-// ====== Hardware Integration (ESP32 RFID) ======
 app.use(express.json());
 
 app.post("/api/hardware/rfid", (req, res) => {
