@@ -70,13 +70,13 @@
       justify-content: space-between;
     }
     .timer-badge {
-      display: none;
+      display: block;
       background: #fef2f2;
       border: 2px solid #ef4444;
       color: #991b1b;
-      padding: 10px 14px;
+      padding: 12px 14px;
       border-radius: 8px;
-      font-size: 18px;
+      font-size: 20px;
       font-weight: 700;
       margin-bottom: 15px;
       text-align: center;
@@ -109,6 +109,10 @@
       resize: vertical;
       font-family: inherit;
     }
+    .qa-block textarea:disabled {
+      background: #e2e8f0;
+      cursor: not-allowed;
+    }
     .no-questions { color: #94a3b8; font-size: 14px; font-style: italic; }
 
     #submitBtn {
@@ -123,6 +127,7 @@
       margin-top: 10px;
     }
     #submitBtn:hover { background: #15803d; }
+    #submitBtn:disabled { background: #94a3b8; cursor: not-allowed; }
     #submitStatus { text-align: center; margin-top: 10px; font-size: 14px; min-height: 20px; }
 
     #cameraWarningPopup {
@@ -160,7 +165,7 @@
     </div>
     
     <div id="examTimer" class="timer-badge">
-      ⏱️ Time Remaining: <span id="timerDisplay">--:--</span>
+      ⏱️ Remaining Time: <span id="timerDisplay">Waiting for Teacher...</span>
     </div>
 
     <div class="warning">⚠️ Copying, pasting, cutting, right-clicking, switching tabs, exiting fullscreen, or leaving camera view triggers instant alerts!</div>
@@ -183,14 +188,12 @@
     let currentQuestions = [];
     let alreadySubmitted = false;
 
-    // ====== Camera Monitoring State ======
     let cameraStream = null;
     let faceCheckInterval = null;
     let noFaceStartTime = null;
     const NO_FACE_THRESHOLD_SECONDS = 15;
     const FACE_CHECK_INTERVAL_MS = 1500;
 
-    // ====== Timer State ======
     let timerInterval = null;
     let totalTimeSeconds = 0;
 
@@ -211,7 +214,6 @@
       try {
         await initCameraMonitoring();
       } catch (err) {
-        console.error("Camera/AI Init Error:", err);
         loginStatus.style.color = '#dc2626';
         loginStatus.textContent = "⚠️ Camera access denied or failed — reported to teacher.";
         studentName = name;
@@ -233,7 +235,6 @@
       enterFullscreen();
     }
 
-    // ====== Camera & AI Monitoring ======
     async function initCameraMonitoring() {
       cameraStream = await navigator.mediaDevices.getUserMedia({ video: true });
       const video = document.getElementById('monitorVideo');
@@ -267,7 +268,7 @@
           if (elapsedSeconds >= NO_FACE_THRESHOLD_SECONDS) {
             showCameraWarningPopup("⚠️ You have not been visible for 15+ seconds. Stay in frame!");
             sendAlert("Camera: Face Not Detected 15s+");
-            noFaceStartTime = Date.now(); // Resets timer so it alerts every 15s continuously
+            noFaceStartTime = Date.now();
           }
         } else if (detections.length > 1) {
           sendAlert("Camera: Multiple Faces Detected (" + detections.length + ")");
@@ -299,13 +300,11 @@
       }, 5000);
     }
 
-    // ====== Countdown Timer Logic ======
     function startCountdownTimer(minutes) {
-      if (!minutes || minutes <= 0 || timerInterval) return;
+      if (!minutes || minutes <= 0) return;
+      if (timerInterval) clearInterval(timerInterval);
 
       totalTimeSeconds = minutes * 60;
-      const timerContainer = document.getElementById('examTimer');
-      timerContainer.style.display = 'block';
       updateTimerDisplay();
 
       timerInterval = setInterval(() => {
@@ -319,8 +318,8 @@
 
         if (totalTimeSeconds <= 0) {
           clearInterval(timerInterval);
-          alert("⏰ Time is up! Submitting your exam automatically.");
-          submitAnswers();
+          document.getElementById('timerDisplay').textContent = "00:00 (TIME EXPIRED)";
+          autoSubmitAndLock();
         }
       }, 1000);
     }
@@ -332,7 +331,11 @@
         `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
     }
 
-    // ====== Fullscreen Enforcement ======
+    function autoSubmitAndLock() {
+      alert("⏰ Exam time expired! Auto-submitting your typed answers and locking exam portal.");
+      submitAnswers();
+    }
+
     function enterFullscreen() {
       const el = document.documentElement;
       const request = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
@@ -358,7 +361,6 @@
       });
     }
 
-    // ====== Event Blockers ======
     document.addEventListener('copy', (e) => {
       if (!studentName) return;
       e.preventDefault();
@@ -398,7 +400,6 @@
       }
     });
 
-    // ====== Questions & Timer Event Handler ======
     socket.on('questions-updated', (data) => {
       if (Array.isArray(data)) {
         currentQuestions = data;
@@ -424,17 +425,20 @@
       area.innerHTML = currentQuestions.map((q, i) => `
         <div class="qa-block">
           <div class="q-text">Q${i + 1}. ${q.text}</div>
-          <textarea id="answer-${q._id}" placeholder="Type your answer here..."></textarea>
+          <textarea id="answer-${q._id}" placeholder="Type your answer here..." ${alreadySubmitted ? 'disabled' : ''}></textarea>
         </div>
       `).join('');
     }
 
     function submitAnswers() {
       if (alreadySubmitted) return;
-      if (!currentQuestions || currentQuestions.length === 0) {
-        alert("No questions to answer yet.");
-        return;
-      }
+
+      const textareas = document.querySelectorAll('#questionArea textarea');
+      textareas.forEach(ta => ta.disabled = true);
+      alreadySubmitted = true;
+
+      if (timerInterval) clearInterval(timerInterval);
+      stopCameraMonitoring();
 
       const answers = currentQuestions.map(q => ({
         questionId: q._id,
@@ -449,14 +453,13 @@
       }, (res) => {
         const statusEl = document.getElementById('submitStatus');
         if (res && res.success) {
-          alreadySubmitted = true;
-          if (timerInterval) clearInterval(timerInterval);
-          stopCameraMonitoring();
           statusEl.style.color = '#16a34a';
-          statusEl.textContent = "✅ Answers submitted successfully!";
+          statusEl.textContent = "✅ Answers submitted successfully! Exam locked.";
           document.getElementById('submitBtn').disabled = true;
           document.getElementById('submitBtn').style.opacity = '0.6';
         } else {
+          alreadySubmitted = false;
+          textareas.forEach(ta => ta.disabled = false);
           statusEl.style.color = '#dc2626';
           statusEl.textContent = "❌ Submission failed. Try again.";
         }
