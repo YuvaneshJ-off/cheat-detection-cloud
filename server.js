@@ -15,6 +15,7 @@ const MONGO_URI = "mongodb+srv://yuvaneshoffia1_db_user:eYul5Bjat9d2DVYP@cluster
 const client = new MongoClient(MONGO_URI);
 let questionsCollection, violationsCollection, settingsCollection, submissionsCollection;
 let teacherPasskey = "admin123";
+let activeExamTimer = null;
 
 async function connectDB() {
   try {
@@ -51,8 +52,26 @@ io.on('connection', async (socket) => {
     socket.emit('submissions-updated', submissions);
   }
 
+  if (activeExamTimer) {
+    const elapsedSeconds = Math.floor((Date.now() - activeExamTimer.startTime) / 1000);
+    const remainingSeconds = (activeExamTimer.durationMinutes * 60) - elapsedSeconds;
+    if (remainingSeconds > 0) {
+      socket.emit('start-timer', {
+        durationMinutes: activeExamTimer.durationMinutes,
+        remainingSeconds: remainingSeconds
+      });
+    }
+  }
+
   socket.on('start-timer', (durationMinutes) => {
-    io.emit('start-timer', durationMinutes);
+    activeExamTimer = {
+      durationMinutes: Number(durationMinutes),
+      startTime: Date.now()
+    };
+    io.emit('start-timer', {
+      durationMinutes: activeExamTimer.durationMinutes,
+      remainingSeconds: activeExamTimer.durationMinutes * 60
+    });
   });
 
   socket.on('student-alert', async (data) => {
@@ -136,20 +155,11 @@ app.use(express.json());
 app.post("/api/hardware/rfid", (req, res) => {
   const { uid } = req.body;
   if (!uid) {
-    return res.status(400).json({
-      ok: false,
-      message: "RFID UID is required"
-    });
+    return res.status(400).json({ ok: false, message: "RFID UID is required" });
   }
   console.log("Hardware RFID:", uid);
-  io.emit("hardwareStudentDetected", {
-    uid: uid,
-    time: new Date().toISOString()
-  });
-  res.json({
-    ok: true,
-    message: "RFID received"
-  });
+  io.emit("hardwareStudentDetected", { uid: uid, time: new Date().toISOString() });
+  res.json({ ok: true, message: "RFID received" });
 });
 
 const PORT = process.env.PORT || 3000;

@@ -5,47 +5,12 @@
   <script src="/socket.io/socket.io.js"></script>
   <style>
     * { box-sizing: border-box; }
-    body {
-      font-family: 'Segoe UI', Arial, sans-serif;
-      margin: 0;
-      background: #f1f5f9;
-      min-height: 100vh;
-    }
-    #loginScreen {
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: linear-gradient(135deg, #1e293b, #334155);
-    }
-    #loginCard {
-      background: #ffffff;
-      padding: 40px;
-      border-radius: 16px;
-      box-shadow: 0 10px 40px rgba(0,0,0,0.3);
-      width: 360px;
-      text-align: center;
-    }
+    body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; background: #f1f5f9; min-height: 100vh; }
+    #loginScreen { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #1e293b, #334155); }
+    #loginCard { background: #ffffff; padding: 40px; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.3); width: 360px; text-align: center; }
     #loginCard h2 { margin-top: 0; color: #1e293b; }
-    #loginCard input {
-      width: 100%;
-      padding: 12px;
-      margin: 10px 0;
-      border: 1px solid #cbd5e1;
-      border-radius: 8px;
-      font-size: 15px;
-    }
-    #loginCard button {
-      width: 100%;
-      padding: 12px;
-      margin-top: 10px;
-      background: #2563eb;
-      color: white;
-      border: none;
-      border-radius: 8px;
-      font-size: 16px;
-      cursor: pointer;
-    }
+    #loginCard input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 15px; }
+    #loginCard button { width: 100%; padding: 12px; margin-top: 10px; background: #2563eb; color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; }
     #loginCard button:hover { background: #1d4ed8; }
     #loginError { color: #dc2626; font-size: 14px; margin-top: 10px; min-height: 18px; }
     #showResetLink { color: #2563eb; font-size: 13px; cursor: pointer; margin-top: 15px; display: inline-block; }
@@ -54,13 +19,7 @@
     #dashboard { display: none; padding: 25px; max-width: 1000px; margin: 0 auto; }
     .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
     h1 { color: #1e293b; margin: 0; }
-    .panel {
-      background: white;
-      border-radius: 12px;
-      padding: 20px;
-      margin-bottom: 25px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-    }
+    .panel { background: white; border-radius: 12px; padding: 20px; margin-bottom: 25px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
     .panel h3 { margin-top: 0; color: #1e293b; }
     .q-row { display: flex; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid #f1f5f9; }
     .q-text { flex: 1; }
@@ -68,61 +27,14 @@
     .edit-btn { background: #fef3c7; color: #92400e; }
     .delete-btn { background: #fee2e2; color: #991b1b; }
 
-    #newQuestionInput {
-      width: 100%;
-      padding: 10px;
-      border: 1px solid #cbd5e1;
-      border-radius: 8px;
-      font-size: 14px;
-      margin-bottom: 10px;
-      resize: vertical;
-      min-height: 60px;
-      font-family: inherit;
-    }
-    .timer-control-box {
-      display: flex;
-      gap: 10px;
-      align-items: center;
-      margin-top: 10px;
-      padding-top: 10px;
-      border-top: 1px solid #e2e8f0;
-    }
-    .timer-control-box input {
-      width: 180px;
-      padding: 10px;
-      border: 1px solid #cbd5e1;
-      border-radius: 8px;
-      font-size: 14px;
-    }
-    #addQuestionBtn, .action-btn {
-      background: #16a34a;
-      color: white;
-      border: none;
-      padding: 10px 18px;
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 14px;
-    }
-    .alert-card {
-      background: #fee2e2;
-      border-left: 6px solid #ef4444;
-      padding: 15px;
-      margin-bottom: 12px;
-      border-radius: 6px;
-      animation: slideIn 0.3s ease-out;
-    }
-    @keyframes slideIn {
-      from { opacity: 0; transform: translateY(-10px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
+    #newQuestionInput { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; margin-bottom: 10px; resize: vertical; min-height: 60px; font-family: inherit; }
+    .timer-control-box { display: flex; gap: 10px; align-items: center; margin-top: 10px; padding-top: 10px; border-top: 1px solid #e2e8f0; }
+    .timer-control-box input { width: 220px; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; }
+    #addQuestionBtn, .action-btn { background: #16a34a; color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 14px; }
+    .alert-card { background: #fee2e2; border-left: 6px solid #ef4444; padding: 15px; margin-bottom: 12px; border-radius: 6px; animation: slideIn 0.3s ease-out; }
+    @keyframes slideIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
     .logout-btn { background: #64748b; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; }
-    .submission-card {
-      background: #f0fdf4;
-      border-left: 6px solid #16a34a;
-      border-radius: 6px;
-      padding: 15px;
-      margin-bottom: 12px;
-    }
+    .submission-card { background: #f0fdf4; border-left: 6px solid #16a34a; border-radius: 6px; padding: 15px; margin-bottom: 12px; }
     .submission-card .sub-header { font-weight: 600; color: #14532d; margin-bottom: 8px; }
     .submission-card .sub-time { font-size: 12px; color: #64748b; margin-bottom: 10px; }
     .submission-card .qa-pair { background: white; border-radius: 6px; padding: 10px; margin-bottom: 6px; font-size: 14px; }
@@ -164,8 +76,8 @@
       </div>
 
       <div class="timer-control-box">
-        <input type="number" id="timerInput" placeholder="Exam duration (mins)" min="1" />
-        <button class="action-btn" onclick="setExamTimer()">⏱️ Set & Broadcast Timer</button>
+        <input type="number" id="timerInput" placeholder="Overall Test Time (mins)" min="1" />
+        <button class="action-btn" onclick="setExamTimer()">⏱️ Set & Broadcast Overall Test Time</button>
         <span id="timerStatus" style="font-size:13px; font-weight:600;"></span>
       </div>
 
@@ -211,7 +123,7 @@
         const errorEl = document.getElementById('resetError');
         if (res.success) {
           errorEl.style.color = '#16a34a';
-          errorEl.textContent = "Passkey updated! You can now log in with the new passkey.";
+          errorEl.textContent = "Passkey updated! Log in with the new passkey.";
         } else {
           errorEl.style.color = '#dc2626';
           errorEl.textContent = res.message;
@@ -250,13 +162,13 @@
     function setExamTimer() {
       const duration = parseInt(document.getElementById('timerInput').value);
       if (!duration || duration <= 0) {
-        alert("Please enter a valid duration in minutes.");
+        alert("Please enter a valid overall test duration in minutes.");
         return;
       }
       socket.emit('start-timer', duration);
       const statusEl = document.getElementById('timerStatus');
       statusEl.style.color = '#16a34a';
-      statusEl.textContent = `✅ Timer set to ${duration} mins!`;
+      statusEl.textContent = `✅ Overall Test Duration set to ${duration} mins for all students!`;
       setTimeout(() => { statusEl.textContent = ''; }, 4000);
     }
 

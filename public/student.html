@@ -6,145 +6,32 @@
   <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
   <style>
     * { box-sizing: border-box; }
-    body {
-      font-family: 'Segoe UI', Arial, sans-serif;
-      margin: 0;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: linear-gradient(135deg, #1e293b, #334155);
-      padding: 20px 0;
-    }
-    #loginScreen {
-      background: #ffffff;
-      padding: 40px;
-      border-radius: 16px;
-      box-shadow: 0 10px 40px rgba(0,0,0,0.3);
-      width: 360px;
-      text-align: center;
-    }
+    body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #1e293b, #334155); padding: 20px 0; }
+    #loginScreen { background: #ffffff; padding: 40px; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.3); width: 360px; text-align: center; }
     #loginScreen h2 { margin-top: 0; color: #1e293b; }
-    #loginScreen input {
-      width: 100%;
-      padding: 12px;
-      margin: 10px 0;
-      border: 1px solid #cbd5e1;
-      border-radius: 8px;
-      font-size: 15px;
-    }
-    #loginScreen button {
-      width: 100%;
-      padding: 12px;
-      margin-top: 10px;
-      background: #2563eb;
-      color: white;
-      border: none;
-      border-radius: 8px;
-      font-size: 16px;
-      cursor: pointer;
-    }
+    #loginScreen input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 15px; }
+    #loginScreen button { width: 100%; padding: 12px; margin-top: 10px; background: #2563eb; color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; }
     #loginScreen button:hover { background: #1d4ed8; }
     #loginScreen button:disabled { background: #94a3b8; cursor: not-allowed; }
     #loginStatus { font-size: 13px; color: #64748b; margin-top: 8px; min-height: 18px; }
 
-    #examScreen {
-      display: none;
-      background: #ffffff;
-      padding: 40px;
-      border-radius: 16px;
-      box-shadow: 0 10px 40px rgba(0,0,0,0.3);
-      width: 650px;
-      max-width: 90vw;
-    }
+    #examScreen { display: none; background: #ffffff; padding: 40px; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.3); width: 650px; max-width: 90vw; }
     #examScreen h2 { margin-top: 0; color: #1e293b; text-align: center; }
-    .student-badge {
-      background: #eff6ff;
-      border: 1px solid #bfdbfe;
-      color: #1e3a8a;
-      padding: 10px 14px;
-      border-radius: 8px;
-      font-size: 14px;
-      margin-bottom: 15px;
-      display: flex;
-      justify-content: space-between;
-    }
-    .timer-badge {
-      display: block;
-      background: #fef2f2;
-      border: 2px solid #ef4444;
-      color: #991b1b;
-      padding: 12px 14px;
-      border-radius: 8px;
-      font-size: 20px;
-      font-weight: 700;
-      margin-bottom: 15px;
-      text-align: center;
-    }
-    .warning {
-      background: #fef2f2;
-      border-left: 4px solid #dc2626;
-      color: #991b1b;
-      padding: 10px 14px;
-      border-radius: 6px;
-      font-size: 14px;
-      font-weight: 600;
-      margin-bottom: 15px;
-    }
-    .qa-block {
-      background: #f8fafc;
-      border: 1px solid #e2e8f0;
-      border-radius: 10px;
-      padding: 16px;
-      margin-bottom: 15px;
-    }
+    .student-badge { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e3a8a; padding: 10px 14px; border-radius: 8px; font-size: 14px; margin-bottom: 15px; display: flex; justify-content: space-between; }
+    .timer-badge { display: block; background: #fef2f2; border: 2px solid #ef4444; color: #991b1b; padding: 12px 14px; border-radius: 8px; font-size: 20px; font-weight: 700; margin-bottom: 15px; text-align: center; }
+    .warning { background: #fef2f2; border-left: 4px solid #dc2626; color: #991b1b; padding: 10px 14px; border-radius: 6px; font-size: 14px; font-weight: 600; margin-bottom: 15px; }
+    .qa-block { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; margin-bottom: 15px; }
     .qa-block .q-text { font-weight: 600; color: #1e293b; margin-bottom: 8px; }
-    .qa-block textarea {
-      width: 100%;
-      height: 80px;
-      font-size: 14px;
-      padding: 10px;
-      border: 1px solid #cbd5e1;
-      border-radius: 8px;
-      resize: vertical;
-      font-family: inherit;
-    }
-    .qa-block textarea:disabled {
-      background: #e2e8f0;
-      cursor: not-allowed;
-    }
+    .qa-block textarea { width: 100%; height: 80px; font-size: 14px; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; resize: vertical; font-family: inherit; }
+    .qa-block textarea:disabled { background: #e2e8f0; cursor: not-allowed; }
     .no-questions { color: #94a3b8; font-size: 14px; font-style: italic; }
 
-    #submitBtn {
-      width: 100%;
-      padding: 14px;
-      background: #16a34a;
-      color: white;
-      border: none;
-      border-radius: 10px;
-      font-size: 16px;
-      cursor: pointer;
-      margin-top: 10px;
-    }
+    #submitBtn { width: 100%; padding: 14px; background: #16a34a; color: white; border: none; border-radius: 10px; font-size: 16px; cursor: pointer; margin-top: 10px; }
     #submitBtn:hover { background: #15803d; }
     #submitBtn:disabled { background: #94a3b8; cursor: not-allowed; }
     #submitStatus { text-align: center; margin-top: 10px; font-size: 14px; min-height: 20px; }
 
-    #cameraWarningPopup {
-      display: none;
-      position: fixed;
-      top: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: #dc2626;
-      color: white;
-      padding: 14px 26px;
-      border-radius: 8px;
-      z-index: 9999;
-      font-weight: 600;
-      font-size: 14px;
-      box-shadow: 0 6px 20px rgba(0,0,0,0.3);
-    }
+    #cameraWarningPopup { display: none; position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #dc2626; color: white; padding: 14px 26px; border-radius: 8px; z-index: 9999; font-weight: 600; font-size: 14px; box-shadow: 0 6px 20px rgba(0,0,0,0.3); }
   </style>
 </head>
 <body>
@@ -165,7 +52,7 @@
     </div>
     
     <div id="examTimer" class="timer-badge">
-      ⏱️ Remaining Time: <span id="timerDisplay">Waiting for Teacher...</span>
+      ⏱️ Overall Test Time Remaining: <span id="timerDisplay">Waiting for Teacher to start test...</span>
     </div>
 
     <div class="warning">⚠️ Copying, pasting, cutting, right-clicking, switching tabs, exiting fullscreen, or leaving camera view triggers instant alerts!</div>
@@ -241,10 +128,7 @@
       video.srcObject = cameraStream;
       await video.play();
 
-      await faceapi.nets.tinyFaceDetector.loadFromUri(
-        'https://vladmandic.github.io/face-api/model/'
-      );
-
+      await faceapi.nets.tinyFaceDetector.loadFromUri('https://vladmandic.github.io/face-api/model/');
       startFaceDetectionLoop(video);
     }
 
@@ -254,10 +138,7 @@
 
         let detections;
         try {
-          detections = await faceapi.detectAllFaces(
-            video,
-            new faceapi.TinyFaceDetectorOptions()
-          );
+          detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions());
         } catch (e) {
           return;
         }
@@ -295,16 +176,19 @@
       popup.textContent = message;
       popup.style.display = 'block';
       clearTimeout(window.__cameraPopupTimeout);
-      window.__cameraPopupTimeout = setTimeout(() => {
-        popup.style.display = 'none';
-      }, 5000);
+      window.__cameraPopupTimeout = setTimeout(() => { popup.style.display = 'none'; }, 5000);
     }
 
-    function startCountdownTimer(minutes) {
-      if (!minutes || minutes <= 0) return;
+    socket.on('start-timer', (data) => {
+      const seconds = (typeof data === 'object') ? data.remainingSeconds : (data * 60);
+      startOverallCountdownTimer(seconds);
+    });
+
+    function startOverallCountdownTimer(seconds) {
+      if (!seconds || seconds <= 0) return;
       if (timerInterval) clearInterval(timerInterval);
 
-      totalTimeSeconds = minutes * 60;
+      totalTimeSeconds = Math.floor(seconds);
       updateTimerDisplay();
 
       timerInterval = setInterval(() => {
@@ -318,7 +202,7 @@
 
         if (totalTimeSeconds <= 0) {
           clearInterval(timerInterval);
-          document.getElementById('timerDisplay').textContent = "00:00 (TIME EXPIRED)";
+          document.getElementById('timerDisplay').textContent = "00:00 (TEST EXPIRED)";
           autoSubmitAndLock();
         }
       }, 1000);
@@ -332,16 +216,14 @@
     }
 
     function autoSubmitAndLock() {
-      alert("⏰ Exam time expired! Auto-submitting your typed answers and locking exam portal.");
+      alert("⏰ Overall test time has expired! Submitting typed answers and locking exam portal.");
       submitAnswers();
     }
 
     function enterFullscreen() {
       const el = document.documentElement;
       const request = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
-      if (request) {
-        request.call(el).catch(() => {});
-      }
+      if (request) request.call(el).catch(() => {});
     }
 
     document.addEventListener('fullscreenchange', () => {
@@ -405,15 +287,8 @@
         currentQuestions = data;
       } else if (data && data.questions) {
         currentQuestions = data.questions;
-        if (data.durationMinutes) {
-          startCountdownTimer(data.durationMinutes);
-        }
       }
       if (studentName) renderQuestions();
-    });
-
-    socket.on('start-timer', (durationMinutes) => {
-      startCountdownTimer(durationMinutes);
     });
 
     function renderQuestions() {
