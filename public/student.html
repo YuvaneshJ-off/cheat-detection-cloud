@@ -3,6 +3,7 @@
 <head>
   <title>Student Exam Screen</title>
   <script src="/socket.io/socket.io.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -45,6 +46,8 @@
       cursor: pointer;
     }
     #loginScreen button:hover { background: #1d4ed8; }
+    #loginScreen button:disabled { background: #94a3b8; cursor: not-allowed; }
+    #loginStatus { font-size: 13px; color: #64748b; margin-top: 8px; min-height: 18px; }
 
     #examScreen {
       display: none;
@@ -111,6 +114,23 @@
     }
     #submitBtn:hover { background: #15803d; }
     #submitStatus { text-align: center; margin-top: 10px; font-size: 14px; min-height: 20px; }
+
+    /* Camera monitoring popup */
+    #cameraWarningPopup {
+      display: none;
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #dc2626;
+      color: white;
+      padding: 14px 26px;
+      border-radius: 8px;
+      z-index: 9999;
+      font-weight: 600;
+      font-size: 14px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+    }
   </style>
 </head>
 <body>
@@ -119,7 +139,8 @@
     <h2>🎓 Exam Login</h2>
     <input type="text" id="nameInput" placeholder="Full Name" />
     <input type="text" id="regInput" placeholder="Register Number" />
-    <button onclick="startExam()">Start Exam</button>
+    <button id="startExamBtn" onclick="startExam()">Start Exam</button>
+    <div id="loginStatus"></div>
   </div>
 
   <div id="examScreen">
@@ -128,7 +149,7 @@
       <span id="badgeName"></span>
       <span id="badgeReg"></span>
     </div>
-    <div class="warning">⚠️ Copying text or switching tabs triggers an automatic alert!</div>
+    <div class="warning">⚠️ Copying, pasting, cutting, right-clicking, switching tabs, exiting fullscreen, or leaving the camera view triggers an automatic alert!</div>
 
     <div id="questionArea">
       <p class="no-questions">Waiting for teacher to post questions...</p>
@@ -138,6 +159,10 @@
     <div id="submitStatus"></div>
   </div>
 
+  <!-- Hidden video element feeding the face-detection loop -->
+  <video id="monitorVideo" autoplay muted playsinline style="display:none; width:1px; height:1px;"></video>
+  <div id="cameraWarningPopup"></div>
+
   <script>
     const socket = io();
     let studentName = "";
@@ -145,13 +170,39 @@
     let currentQuestions = [];
     let alreadySubmitted = false;
 
-    function startExam() {
+    // ====== Camera monitoring state ======
+    let cameraStream = null;
+    let faceCheckInterval = null;
+    let noFaceStartTime = null;
+    let noFaceWarningShown = false;
+    const NO_FACE_THRESHOLD_SECONDS = 15;
+    const FACE_CHECK_INTERVAL_MS = 1500;
+
+    async function startExam() {
       const name = document.getElementById('nameInput').value.trim();
       const reg = document.getElementById('regInput').value.trim();
 
       if (!name || !reg) {
         alert("Please enter both Name and Register Number.");
         return;
+      }
+
+      const startBtn = document.getElementById('startExamBtn');
+      const loginStatus = document.getElementById('loginStatus');
+      startBtn.disabled = true;
+      loginStatus.textContent = "Requesting camera access...";
+
+      try {
+        await initCameraMonitoring();
+      } catch (err) {
+        console.error("Camera/AI Init Error:", err);
+        // Camera denied or unavailable — flagged, but student is still allowed to proceed.
+        loginStatus.style.color = '#dc2626';
+        loginStatus.textContent = "⚠️ Camera access denied or failed — this has been reported. Proceeding without monitoring.";
+        studentName = name; // needed so sendAlert() will fire
+        studentReg = reg;
+        sendAlert("Camera Permission Denied or Failed");
+        await new Promise(r => setTimeout(r, 2000));
       }
 
       studentName = name;
@@ -164,7 +215,97 @@
       document.getElementById('examScreen').style.display = 'block';
 
       renderQuestions();
+      enterFullscreen();
     }
+
+    // ====== Anti-cheat: Camera / Face monitoring ======
+    async function initCameraMonitoring() {
+      // 1. Request camera permission FIRST so prompt appears instantly
+      cameraStream = await navigator.mediaDevices.getUserMedia({ video: true });
+      const video = document.getElementById('monitorVideo');
+      video.srcObject = cameraStream;
+      await video.play();
+
+      // 2. Load face detection models in background
+      await faceapi.nets.tinyFaceDetector.loadFromUri(
+        'https://vladmandic.github.io/face-api/model/'
+      );
+
+      // 3. Start monitoring loop
+      startFaceDetectionLoop(video);
+    }
+
+    function startFaceDetectionLoop(video) {
+      faceCheckInterval = setInterval(async () => {
+        if (alreadySubmitted) return;
+
+        let detections;
+        try {
+          detections = await faceapi.detectAllFaces(
+            video,
+            new faceapi.TinyFaceDetectorOptions()
+          );
+        } catch (e) {
+          return; // model not ready yet or transient error — skip this tick
+        }
+
+        if (detections.length === 0) {
+          if (!noFaceStartTime) noFaceStartTime = Date.now();
+          const elapsedSeconds = (Date.now() - noFaceStartTime) / 1000;
+          if (elapsedSeconds >= NO_FACE_THRESHOLD_SECONDS && !noFaceWarningShown) {
+            showCameraWarningPopup("⚠️ You have not been visible to the camera for 15+ seconds. Please stay in frame.");
+            sendAlert("Camera: Face Not Detected 15s+");
+            noFaceWarningShown = true;
+          }
+        } else if (detections.length > 1) {
+          sendAlert("Camera: Multiple Faces Detected (" + detections.length + ")");
+          noFaceStartTime = null;
+          noFaceWarningShown = false;
+        } else {
+          noFaceStartTime = null;
+          noFaceWarningShown = false;
+        }
+      }, FACE_CHECK_INTERVAL_MS);
+    }
+
+    function stopCameraMonitoring() {
+      if (faceCheckInterval) {
+        clearInterval(faceCheckInterval);
+        faceCheckInterval = null;
+      }
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+        cameraStream = null;
+      }
+    }
+
+    function showCameraWarningPopup(message) {
+      const popup = document.getElementById('cameraWarningPopup');
+      popup.textContent = message;
+      popup.style.display = 'block';
+      clearTimeout(window.__cameraPopupTimeout);
+      window.__cameraPopupTimeout = setTimeout(() => {
+        popup.style.display = 'none';
+      }, 5000);
+    }
+
+    // ====== Anti-cheat: Fullscreen enforcement ======
+    function enterFullscreen() {
+      const el = document.documentElement;
+      const request = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+      if (request) {
+        request.call(el).catch(() => {
+          // Some browsers block this without a direct user gesture; ignored here.
+        });
+      }
+    }
+
+    document.addEventListener('fullscreenchange', () => {
+      const inFullscreen = !!document.fullscreenElement;
+      if (!inFullscreen && studentName && !alreadySubmitted) {
+        sendAlert("Exited Fullscreen Mode");
+      }
+    });
 
     function sendAlert(type) {
       if (!studentName) return;
@@ -176,6 +317,7 @@
       });
     }
 
+    // ====== Anti-cheat: block Copy ======
     document.addEventListener('copy', (e) => {
       if (!studentName) return;
       e.preventDefault();
@@ -183,6 +325,7 @@
       alert("Copying text is prohibited during exams!");
     });
 
+    // ====== Anti-cheat: block Paste (covers text copied before the exam too) ======
     document.addEventListener('paste', (e) => {
       if (!studentName) return;
       e.preventDefault();
@@ -190,9 +333,31 @@
       alert("Pasting text is prohibited during exams!");
     });
 
+    // ====== Anti-cheat: block Cut ======
+    document.addEventListener('cut', (e) => {
+      if (!studentName) return;
+      e.preventDefault();
+      sendAlert("Attempted Cut Action");
+      alert("Cutting text is prohibited during exams!");
+    });
+
+    // ====== Anti-cheat: block Right-click (blocks the "Paste" context menu option too) ======
+    document.addEventListener('contextmenu', (e) => {
+      if (!studentName) return;
+      e.preventDefault();
+      sendAlert("Attempted Right-Click");
+    });
+
     document.addEventListener('visibilitychange', () => {
       if (document.hidden && studentName) {
         sendAlert("Switched Tab / Window");
+      }
+    });
+
+    // ====== Anti-cheat: Window focus loss (catches app switches, overlays, assistants) ======
+    window.addEventListener('blur', () => {
+      if (studentName && !alreadySubmitted) {
+        sendAlert("Lost Window Focus");
       }
     });
 
@@ -239,6 +404,7 @@
         const statusEl = document.getElementById('submitStatus');
         if (res && res.success) {
           alreadySubmitted = true;
+          stopCameraMonitoring();
           statusEl.style.color = '#16a34a';
           statusEl.textContent = "✅ Answers submitted successfully!";
           document.getElementById('submitBtn').disabled = true;
