@@ -7,6 +7,7 @@ const { MongoClient, ObjectId } = require('mongodb');
 const app = express();
 app.use(cors());
 app.use(express.static('public'));
+app.use(express.json({ limit: '2mb' }));
 
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
@@ -16,6 +17,7 @@ const client = new MongoClient(MONGO_URI);
 let questionsCollection, violationsCollection, settingsCollection, submissionsCollection;
 let teacherPasskey = "admin123";
 let activeExamTimer = null;
+let invigilatorDescriptor = null; // array of 128 numbers, or null if not set
 
 async function connectDB() {
   try {
@@ -32,6 +34,11 @@ async function connectDB() {
     } else {
       await settingsCollection.insertOne({ _id: "teacherConfig", passkey: teacherPasskey });
     }
+
+    if (savedSettings && savedSettings.invigilatorDescriptor) {
+      invigilatorDescriptor = savedSettings.invigilatorDescriptor;
+    }
+
     console.log("Connected to MongoDB Atlas");
   } catch (err) {
     console.error("MongoDB connection error:", err);
@@ -62,6 +69,9 @@ io.on('connection', async (socket) => {
       });
     }
   }
+
+  // Send current invigilator descriptor (if any) to whoever just connected
+  socket.emit('invigilator-face-updated', { descriptor: invigilatorDescriptor });
 
   socket.on('start-timer', (durationMinutes) => {
     activeExamTimer = {
@@ -148,9 +158,37 @@ io.on('connection', async (socket) => {
     io.emit('submissions-updated', submissions);
     if (callback) callback({ success: true });
   });
-});
 
-app.use(express.json());
+  // Teacher uploads/sets invigilator's face descriptor
+  socket.on('set-invigilator-face', async (descriptor, callback) => {
+    if (!Array.isArray(descriptor) || descriptor.length === 0) {
+      if (callback) callback({ success: false, message: "Invalid face data received." });
+      return;
+    }
+    invigilatorDescriptor = descriptor;
+    if (settingsCollection) {
+      await settingsCollection.updateOne(
+        { _id: "teacherConfig" },
+        { $set: { invigilatorDescriptor: descriptor } }
+      );
+    }
+    io.emit('invigilator-face-updated', { descriptor: invigilatorDescriptor });
+    if (callback) callback({ success: true });
+  });
+
+  // Teacher removes the stored invigilator face
+  socket.on('clear-invigilator-face', async (_, callback) => {
+    invigilatorDescriptor = null;
+    if (settingsCollection) {
+      await settingsCollection.updateOne(
+        { _id: "teacherConfig" },
+        { $unset: { invigilatorDescriptor: "" } }
+      );
+    }
+    io.emit('invigilator-face-updated', { descriptor: null });
+    if (callback) callback({ success: true });
+  });
+});
 
 app.post("/api/hardware/rfid", (req, res) => {
   const { uid } = req.body;

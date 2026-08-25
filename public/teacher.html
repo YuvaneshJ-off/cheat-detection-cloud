@@ -3,6 +3,7 @@
 <head>
   <title>Teacher Live Dashboard</title>
   <script src="/socket.io/socket.io.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
   <style>
     * { box-sizing: border-box; }
     body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; background: #f1f5f9; min-height: 100vh; }
@@ -31,6 +32,7 @@
     .timer-control-box { display: flex; gap: 10px; align-items: center; margin-top: 10px; padding-top: 10px; border-top: 1px solid #e2e8f0; }
     .timer-control-box input { width: 220px; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; }
     #addQuestionBtn, .action-btn { background: #16a34a; color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 14px; }
+    .action-btn:disabled { background: #94a3b8; cursor: not-allowed; }
     .alert-card { background: #fee2e2; border-left: 6px solid #ef4444; padding: 15px; margin-bottom: 12px; border-radius: 6px; animation: slideIn 0.3s ease-out; }
     @keyframes slideIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
     .logout-btn { background: #64748b; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; }
@@ -41,6 +43,14 @@
     .submission-card .qa-pair .q { font-weight: 600; color: #1e293b; }
     .submission-card .qa-pair .a { color: #334155; margin-top: 4px; }
     .no-submissions, .no-alerts { color: #94a3b8; font-size: 14px; font-style: italic; }
+
+    .invig-row { display: flex; gap: 15px; align-items: center; flex-wrap: wrap; }
+    .invig-preview { width: 70px; height: 70px; border-radius: 10px; object-fit: cover; border: 2px solid #cbd5e1; background: #f1f5f9; }
+    .invig-status { font-size: 14px; padding: 8px 12px; border-radius: 6px; }
+    .invig-status.set { background: #dcfce7; color: #166534; }
+    .invig-status.unset { background: #fef9c3; color: #854d0e; }
+    #invigilatorFileInput { display: none; }
+    .clear-btn { background: #64748b; color: white; }
   </style>
 </head>
 <body>
@@ -66,6 +76,18 @@
     <div class="topbar">
       <h1>Teacher Live Cloud Monitoring Dashboard</h1>
       <button class="logout-btn" onclick="location.reload()">Logout</button>
+    </div>
+
+    <div class="panel">
+      <h3>🧑‍💼 Invigilator Face Recognition</h3>
+      <p style="font-size:13px; color:#64748b; margin-top:-8px;">Upload a clear photo of the invigilator so their presence near a student's camera is not flagged as "multiple faces detected". Uploading a new photo replaces the old one.</p>
+      <div class="invig-row">
+        <img id="invigPreview" class="invig-preview" src="" style="display:none;" />
+        <button class="action-btn" id="uploadInvigBtn" onclick="document.getElementById('invigilatorFileInput').click()">📷 Upload / Replace Invigilator Photo</button>
+        <input type="file" id="invigilatorFileInput" accept="image/*" onchange="handleInvigilatorUpload(event)" />
+        <button class="action-btn clear-btn" onclick="clearInvigilatorFace()">Remove</button>
+        <span id="invigStatus" class="invig-status unset">No invigilator face set</span>
+      </div>
     </div>
 
     <div class="panel">
@@ -98,6 +120,7 @@
   <script>
     const socket = io();
     let editingId = null;
+    let faceApiModelsLoaded = false;
 
     function toggleReset() {
       const box = document.getElementById('resetBox');
@@ -172,6 +195,80 @@
       setTimeout(() => { statusEl.textContent = ''; }, 4000);
     }
 
+    // ===== Invigilator Face Upload =====
+    async function ensureFaceApiModelsLoaded() {
+      if (faceApiModelsLoaded) return;
+      const MODEL_URL = 'https://vladmandic.github.io/face-api/model/';
+      await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+      await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+      await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+      faceApiModelsLoaded = true;
+    }
+
+    async function handleInvigilatorUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const statusEl = document.getElementById('invigStatus');
+      statusEl.className = 'invig-status unset';
+      statusEl.textContent = 'Processing photo...';
+
+      try {
+        await ensureFaceApiModelsLoaded();
+
+        const imgUrl = URL.createObjectURL(file);
+        const img = await faceapi.bufferToImage(file);
+
+        const detection = await faceapi
+          .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions())
+          .withFaceLandmarks()
+          .withFaceDescriptor();
+
+        if (!detection) {
+          statusEl.textContent = '❌ No face found in that photo. Try a clearer one.';
+          return;
+        }
+
+        const descriptorArray = Array.from(detection.descriptor);
+
+        socket.emit('set-invigilator-face', descriptorArray, (res) => {
+          if (res && res.success) {
+            document.getElementById('invigPreview').src = imgUrl;
+            document.getElementById('invigPreview').style.display = 'block';
+            statusEl.className = 'invig-status set';
+            statusEl.textContent = '✅ Invigilator face set';
+          } else {
+            statusEl.textContent = '❌ Failed to save invigilator face.';
+          }
+        });
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = '❌ Error processing photo.';
+      }
+    }
+
+    function clearInvigilatorFace() {
+      if (!confirm('Remove the invigilator face? Multiple-face detection will no longer exclude them.')) return;
+      socket.emit('clear-invigilator-face', null, (res) => {
+        const statusEl = document.getElementById('invigStatus');
+        document.getElementById('invigPreview').style.display = 'none';
+        statusEl.className = 'invig-status unset';
+        statusEl.textContent = 'No invigilator face set';
+      });
+    }
+
+    socket.on('invigilator-face-updated', (data) => {
+      const statusEl = document.getElementById('invigStatus');
+      if (data && data.descriptor) {
+        statusEl.className = 'invig-status set';
+        statusEl.textContent = '✅ Invigilator face set';
+      } else {
+        statusEl.className = 'invig-status unset';
+        statusEl.textContent = 'No invigilator face set';
+      }
+    });
+
+    // ===== Existing dashboard logic =====
     socket.on('questions-updated', (questions) => {
       const list = document.getElementById('questionList');
       if (questions.length === 0) {
