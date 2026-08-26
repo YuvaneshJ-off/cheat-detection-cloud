@@ -1,330 +1,263 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Teacher Live Dashboard</title>
+  <title>Teacher Dashboard</title>
   <script src="/socket.io/socket.io.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
   <style>
     * { box-sizing: border-box; }
-    body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; background: #f1f5f9; min-height: 100vh; }
-    #loginScreen { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #1e293b, #334155); }
-    #loginCard { background: #ffffff; padding: 40px; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.3); width: 360px; text-align: center; }
-    #loginCard h2 { margin-top: 0; color: #1e293b; }
-    #loginCard input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 15px; }
-    #loginCard button { width: 100%; padding: 12px; margin-top: 10px; background: #2563eb; color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; }
-    #loginCard button:hover { background: #1d4ed8; }
-    #loginError { color: #dc2626; font-size: 14px; margin-top: 10px; min-height: 18px; }
-    #showResetLink { color: #2563eb; font-size: 13px; cursor: pointer; margin-top: 15px; display: inline-block; }
-    #resetBox { display: none; margin-top: 15px; border-top: 1px solid #e2e8f0; padding-top: 15px; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; background: #f1f5f9; padding: 20px; }
+    .container { max-width: 900px; margin: 0 auto; }
+    
+    #loginSection { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 360px; margin: 100px auto; text-align: center; }
+    #loginSection input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #cbd5e1; border-radius: 8px; }
+    #loginSection button { width: 100%; padding: 12px; background: #2563eb; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; }
+    #loginSection button:disabled { background: #94a3b8; cursor: not-allowed; }
+    #loginStatus { margin-top: 10px; font-size: 14px; min-height: 20px; }
 
-    #dashboard { display: none; padding: 25px; max-width: 1000px; margin: 0 auto; }
-    .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-    h1 { color: #1e293b; margin: 0; }
-    .panel { background: white; border-radius: 12px; padding: 20px; margin-bottom: 25px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-    .panel h3 { margin-top: 0; color: #1e293b; }
-    .q-row { display: flex; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid #f1f5f9; }
-    .q-text { flex: 1; }
-    .q-row button { border: none; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 13px; }
-    .edit-btn { background: #fef3c7; color: #92400e; }
-    .delete-btn { background: #fee2e2; color: #991b1b; }
-
-    #newQuestionInput { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; margin-bottom: 10px; resize: vertical; min-height: 60px; font-family: inherit; }
-    .timer-control-box { display: flex; gap: 10px; align-items: center; margin-top: 10px; padding-top: 10px; border-top: 1px solid #e2e8f0; }
-    .timer-control-box input { width: 220px; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; }
-    #addQuestionBtn, .action-btn { background: #16a34a; color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 14px; }
-    .action-btn:disabled { background: #94a3b8; cursor: not-allowed; }
-    .alert-card { background: #fee2e2; border-left: 6px solid #ef4444; padding: 15px; margin-bottom: 12px; border-radius: 6px; animation: slideIn 0.3s ease-out; }
-    @keyframes slideIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
-    .logout-btn { background: #64748b; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; }
-    .submission-card { background: #f0fdf4; border-left: 6px solid #16a34a; border-radius: 6px; padding: 15px; margin-bottom: 12px; }
-    .submission-card .sub-header { font-weight: 600; color: #14532d; margin-bottom: 8px; }
-    .submission-card .sub-time { font-size: 12px; color: #64748b; margin-bottom: 10px; }
-    .submission-card .qa-pair { background: white; border-radius: 6px; padding: 10px; margin-bottom: 6px; font-size: 14px; }
-    .submission-card .qa-pair .q { font-weight: 600; color: #1e293b; }
-    .submission-card .qa-pair .a { color: #334155; margin-top: 4px; }
-    .no-submissions, .no-alerts { color: #94a3b8; font-size: 14px; font-style: italic; }
-
-    .invig-row { display: flex; gap: 15px; align-items: center; flex-wrap: wrap; }
-    .invig-preview { width: 70px; height: 70px; border-radius: 10px; object-fit: cover; border: 2px solid #cbd5e1; background: #f1f5f9; }
-    .invig-status { font-size: 14px; padding: 8px 12px; border-radius: 6px; }
-    .invig-status.set { background: #dcfce7; color: #166534; }
-    .invig-status.unset { background: #fef9c3; color: #854d0e; }
-    #invigilatorFileInput { display: none; }
-    .clear-btn { background: #64748b; color: white; }
+    #dashboardSection { display: none; }
+    .card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+    .card h3 { margin-top: 0; color: #1e293b; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px; }
+    
+    .flex-row { display: flex; gap: 10px; margin-bottom: 10px; }
+    input[type="text"], input[type="number"], input[type="file"] { padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; }
+    button.btn { padding: 10px 16px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; }
+    button.btn-danger { background: #dc2626; }
+    
+    .alert-box { background: #fef2f2; border: 1px solid #fca5a5; color: #991b1b; padding: 12px; border-radius: 8px; margin-bottom: 10px; }
+    .sub-box { background: #f8fafc; border: 1px solid #e2e8f0; padding: 12px; border-radius: 8px; margin-bottom: 10px; }
+    .q-item { display: flex; justify-content: space-between; align-items: center; background: #f8fafc; padding: 10px; border-radius: 6px; margin-bottom: 8px; }
   </style>
 </head>
 <body>
 
-  <div id="loginScreen">
-    <div id="loginCard">
-      <h2>🔒 Teacher Login</h2>
-      <input type="password" id="passkeyInput" placeholder="Enter Passkey" />
-      <button onclick="tryLogin()">Login</button>
-      <div id="loginError"></div>
-      <div id="showResetLink" onclick="toggleReset()">Forgot / Reset Passkey?</div>
+<div class="container">
 
-      <div id="resetBox">
-        <input type="password" id="oldPasskeyInput" placeholder="Old Passkey" />
-        <input type="password" id="newPasskeyInput" placeholder="New Passkey (min 4 chars)" />
-        <button onclick="tryReset()">Reset Passkey</button>
-        <div id="resetError" style="color:#dc2626; font-size:13px; margin-top:8px;"></div>
+  <div id="loginSection">
+    <h2>👨‍🏫 Teacher Login</h2>
+    <input type="password" id="passkeyInput" placeholder="Enter Passkey (Default: 1234)" />
+    <button id="loginBtn" onclick="loginTeacher()">Login</button>
+    <div id="loginStatus"></div>
+  </div>
+
+  <div id="dashboardSection">
+    <h2>Invigilator Dashboard</h2>
+
+    <div class="card">
+      <h3>🔑 Reset Passkey</h3>
+      <div class="flex-row">
+        <input type="password" id="oldPasskey" placeholder="Old Passkey" />
+        <input type="password" id="newPasskey" placeholder="New Passkey" />
+        <button class="btn" onclick="resetPasskey()">Update Passkey</button>
+      </div>
+      <div id="passkeyStatus"></div>
+    </div>
+
+    <div class="card">
+      <h3>👤 Invigilator Face Registration</h3>
+      <div class="flex-row">
+        <input type="file" id="invigilatorImage" accept="image/*" />
+        <button class="btn" onclick="uploadInvigilatorFace()">Upload & Register Face</button>
+        <button class="btn btn-danger" onclick="clearInvigilatorFace()">Clear Registered Face</button>
+      </div>
+      <div id="faceStatus"></div>
+    </div>
+
+    <div class="card">
+      <h3>⏱️ Exam Duration Control</h3>
+      <div class="flex-row">
+        <input type="number" id="timerMinutes" placeholder="Minutes (e.g., 60)" min="1" />
+        <button class="btn" onclick="startExamTimer()">Start Test Timer</button>
+      </div>
+      <div id="timerStatus"></div>
+    </div>
+
+    <div class="card">
+      <h3>📝 Question Management</h3>
+      <div class="flex-row">
+        <input type="text" id="questionInput" placeholder="Enter new question..." style="flex: 1;" />
+        <button class="btn" onclick="addQuestion()">Add Question</button>
+      </div>
+      <div id="questionsList"></div>
+    </div>
+
+    <div class="card">
+      <h3>🚨 Real-Time Proctoring Alerts</h3>
+      <div id="notificationsList">
+        <p style="color: #94a3b8; font-style: italic;">No violations detected yet.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>📄 Student Submissions</h3>
+      <div id="submissionsList">
+        <p style="color: #94a3b8; font-style: italic;">No submissions yet.</p>
       </div>
     </div>
   </div>
 
-  <div id="dashboard">
-    <div class="topbar">
-      <h1>Teacher Live Cloud Monitoring Dashboard</h1>
-      <button class="logout-btn" onclick="location.reload()">Logout</button>
-    </div>
+</div>
 
-    <div class="panel">
-      <h3>🧑‍💼 Invigilator Face Recognition</h3>
-      <p style="font-size:13px; color:#64748b; margin-top:-8px;">Upload a clear photo of the invigilator so their presence near a student's camera is not flagged as "multiple faces detected". Uploading a new photo replaces the old one.</p>
-      <div class="invig-row">
-        <img id="invigPreview" class="invig-preview" src="" style="display:none;" />
-        <button class="action-btn" id="uploadInvigBtn" onclick="document.getElementById('invigilatorFileInput').click()">📷 Upload / Replace Invigilator Photo</button>
-        <input type="file" id="invigilatorFileInput" accept="image/*" onchange="handleInvigilatorUpload(event)" />
-        <button class="action-btn clear-btn" onclick="clearInvigilatorFace()">Remove</button>
-        <span id="invigStatus" class="invig-status unset">No invigilator face set</span>
-      </div>
-    </div>
+<script>
+  const socket = io();
+  let modelsLoaded = false;
 
-    <div class="panel">
-      <h3>📝 Manage Questions & Exam Controls</h3>
-      <textarea id="newQuestionInput" placeholder="Type a new question here..."></textarea>
-      <div>
-        <button id="addQuestionBtn" onclick="addQuestion()">Add Question</button>
-      </div>
+  async function loadModels() {
+    const MODEL_URL = 'https://vladmandic.github.io/face-api/model/';
+    await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+    await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+    await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+    modelsLoaded = true;
+  }
+  loadModels();
 
-      <div class="timer-control-box">
-        <input type="number" id="timerInput" placeholder="Overall Test Time (mins)" min="1" />
-        <button class="action-btn" onclick="setExamTimer()">⏱️ Set & Broadcast Overall Test Time</button>
-        <span id="timerStatus" style="font-size:13px; font-weight:600;"></span>
-      </div>
+  function loginTeacher() {
+    const passkey = document.getElementById('passkeyInput').value.trim();
+    const btn = document.getElementById('loginBtn');
+    const status = document.getElementById('loginStatus');
 
-      <div id="questionList" style="margin-top:15px;"></div>
-    </div>
-
-    <div class="panel">
-      <h3>📥 Student Submissions</h3>
-      <div id="submissionList"><p class="no-submissions">No submissions yet.</p></div>
-    </div>
-
-    <div class="panel">
-      <h3>🚨 Real-Time Violation Feed</h3>
-      <div id="alertContainer"><p class="no-alerts">No violations detected yet.</p></div>
-    </div>
-  </div>
-
-  <script>
-    const socket = io();
-    let editingId = null;
-    let faceApiModelsLoaded = false;
-
-    function toggleReset() {
-      const box = document.getElementById('resetBox');
-      box.style.display = box.style.display === 'block' ? 'none' : 'block';
+    if (!passkey) {
+      status.style.color = '#dc2626';
+      status.textContent = "Please enter a passkey.";
+      return;
     }
 
-    function tryLogin() {
-      const passkey = document.getElementById('passkeyInput').value;
-      socket.emit('teacher-login', passkey, (res) => {
-        if (res.success) {
-          document.getElementById('loginScreen').style.display = 'none';
-          document.getElementById('dashboard').style.display = 'block';
-        } else {
-          document.getElementById('loginError').textContent = res.message;
-        }
-      });
-    }
+    btn.disabled = true;
+    status.style.color = '#64748b';
+    status.textContent = "Verifying...";
 
-    function tryReset() {
-      const oldPasskey = document.getElementById('oldPasskeyInput').value;
-      const newPasskey = document.getElementById('newPasskeyInput').value;
-      socket.emit('teacher-reset-passkey', { oldPasskey, newPasskey }, (res) => {
-        const errorEl = document.getElementById('resetError');
-        if (res.success) {
-          errorEl.style.color = '#16a34a';
-          errorEl.textContent = "Passkey updated! Log in with the new passkey.";
-        } else {
-          errorEl.style.color = '#dc2626';
-          errorEl.textContent = res.message;
-        }
-      });
-    }
-
-    function addQuestion() {
-      const input = document.getElementById('newQuestionInput');
-      const text = input.value.trim();
-      if (!text) return;
-
-      if (editingId !== null) {
-        socket.emit('edit-question', { id: editingId, text });
-        editingId = null;
-        document.getElementById('addQuestionBtn').textContent = 'Add Question';
+    socket.emit('teacher-login', passkey, (res) => {
+      btn.disabled = false; // Always re-enable button on response
+      if (res && res.success) {
+        document.getElementById('loginSection').style.display = 'none';
+        document.getElementById('dashboardSection').style.display = 'block';
       } else {
-        socket.emit('add-question', text);
+        status.style.color = '#dc2626';
+        status.textContent = (res && res.message) || 'Invalid Passkey';
       }
-      input.value = '';
-    }
+    });
+  }
 
-    function startEdit(id, currentText) {
-      editingId = id;
-      document.getElementById('newQuestionInput').value = currentText;
-      document.getElementById('addQuestionBtn').textContent = 'Save Edit';
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
+  function resetPasskey() {
+    const oldPasskey = document.getElementById('oldPasskey').value.trim();
+    const newPasskey = document.getElementById('newPasskey').value.trim();
+    const status = document.getElementById('passkeyStatus');
 
-    function deleteQuestion(id) {
-      if (confirm('Delete this question?')) {
-        socket.emit('delete-question', id);
-      }
-    }
-
-    function setExamTimer() {
-      const duration = parseInt(document.getElementById('timerInput').value);
-      if (!duration || duration <= 0) {
-        alert("Please enter a valid overall test duration in minutes.");
-        return;
-      }
-      socket.emit('start-timer', duration);
-      const statusEl = document.getElementById('timerStatus');
-      statusEl.style.color = '#16a34a';
-      statusEl.textContent = `✅ Overall Test Duration set to ${duration} mins for all students!`;
-      setTimeout(() => { statusEl.textContent = ''; }, 4000);
-    }
-
-    // ===== Invigilator Face Upload =====
-    async function ensureFaceApiModelsLoaded() {
-      if (faceApiModelsLoaded) return;
-      const MODEL_URL = 'https://vladmandic.github.io/face-api/model/';
-      await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
-      await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
-      await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
-      faceApiModelsLoaded = true;
-    }
-
-    async function handleInvigilatorUpload(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-
-      const statusEl = document.getElementById('invigStatus');
-      statusEl.className = 'invig-status unset';
-      statusEl.textContent = 'Processing photo...';
-
-      try {
-        await ensureFaceApiModelsLoaded();
-
-        const imgUrl = URL.createObjectURL(file);
-        const img = await faceapi.bufferToImage(file);
-
-        const detection = await faceapi
-          .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions())
-          .withFaceLandmarks()
-          .withFaceDescriptor();
-
-        if (!detection) {
-          statusEl.textContent = '❌ No face found in that photo. Try a clearer one.';
-          return;
-        }
-
-        const descriptorArray = Array.from(detection.descriptor);
-
-        socket.emit('set-invigilator-face', descriptorArray, (res) => {
-          if (res && res.success) {
-            document.getElementById('invigPreview').src = imgUrl;
-            document.getElementById('invigPreview').style.display = 'block';
-            statusEl.className = 'invig-status set';
-            statusEl.textContent = '✅ Invigilator face set';
-          } else {
-            statusEl.textContent = '❌ Failed to save invigilator face.';
-          }
-        });
-      } catch (err) {
-        console.error(err);
-        statusEl.textContent = '❌ Error processing photo.';
-      }
-    }
-
-    function clearInvigilatorFace() {
-      if (!confirm('Remove the invigilator face? Multiple-face detection will no longer exclude them.')) return;
-      socket.emit('clear-invigilator-face', null, (res) => {
-        const statusEl = document.getElementById('invigStatus');
-        document.getElementById('invigPreview').style.display = 'none';
-        statusEl.className = 'invig-status unset';
-        statusEl.textContent = 'No invigilator face set';
-      });
-    }
-
-    socket.on('invigilator-face-updated', (data) => {
-      const statusEl = document.getElementById('invigStatus');
-      if (data && data.descriptor) {
-        statusEl.className = 'invig-status set';
-        statusEl.textContent = '✅ Invigilator face set';
+    socket.emit('teacher-reset-passkey', { oldPasskey, newPasskey }, (res) => {
+      if (res && res.success) {
+        status.style.color = '#16a34a';
+        status.textContent = "Passkey updated successfully!";
+        document.getElementById('oldPasskey').value = '';
+        document.getElementById('newPasskey').value = '';
       } else {
-        statusEl.className = 'invig-status unset';
-        statusEl.textContent = 'No invigilator face set';
+        status.style.color = '#dc2626';
+        status.textContent = res.message || "Failed to update passkey.";
       }
     });
+  }
 
-    // ===== Existing dashboard logic =====
-    socket.on('questions-updated', (questions) => {
-      const list = document.getElementById('questionList');
-      if (questions.length === 0) {
-        list.innerHTML = '<p style="color:#94a3b8;">No questions added yet.</p>';
-        return;
-      }
-      list.innerHTML = questions.map(q => `
-        <div class="q-row">
-          <div class="q-text">${q.text}</div>
-          <button class="edit-btn" onclick='startEdit(${JSON.stringify(q._id)}, ${JSON.stringify(q.text)})'>Edit</button>
-          <button class="delete-btn" onclick='deleteQuestion(${JSON.stringify(q._id)})'>Delete</button>
-        </div>
-      `).join('');
-    });
+  async function uploadInvigilatorFace() {
+    const fileInput = document.getElementById('invigilatorImage');
+    const status = document.getElementById('faceStatus');
 
-    socket.on('submissions-updated', (submissions) => {
-      const list = document.getElementById('submissionList');
-      if (!submissions || submissions.length === 0) {
-        list.innerHTML = '<p class="no-submissions">No submissions yet.</p>';
-        return;
-      }
-      list.innerHTML = submissions.map(sub => `
-        <div class="submission-card">
-          <div class="sub-header">👤 ${sub.student} &nbsp; 🆔 ${sub.regNo}</div>
-          <div class="sub-time">Submitted: ${sub.submittedAt}</div>
-          ${sub.answers.map((a, i) => `
-            <div class="qa-pair">
-              <div class="q">Q${i + 1}. ${a.questionText}</div>
-              <div class="a">${a.answerText || '<i>(No answer given)</i>'}</div>
-            </div>
-          `).join('')}
-        </div>
-      `).join('');
-    });
-
-    function addViolationAlert(data) {
-      const container = document.getElementById('alertContainer');
-      if (!container) return;
-
-      const emptyText = container.querySelector('.no-alerts');
-      if (emptyText) emptyText.remove();
-
-      const card = document.createElement('div');
-      card.className = 'alert-card';
-      card.innerHTML = `
-        <h4 style="margin:0 0 5px 0; color:#991b1b;">⚠️ Violation Detected!</h4>
-        <p style="margin:2px 0;"><strong>Student:</strong> ${data.student}</p>
-        <p style="margin:2px 0;"><strong>Reg No:</strong> ${data.regNo}</p>
-        <p style="margin:2px 0;"><strong>Action:</strong> ${data.violation}</p>
-        <p style="margin:2px 0;"><strong>Timestamp:</strong> ${data.time}</p>
-      `;
-      container.prepend(card);
+    if (!fileInput.files || fileInput.files.length === 0) {
+      alert("Please select an image file first.");
+      return;
+    }
+    if (!modelsLoaded) {
+      status.textContent = "Face API models are still loading, please wait...";
+      return;
     }
 
-    socket.on('teacher-notification', addViolationAlert);
-    socket.on('student-alert', addViolationAlert);
-  </script>
+    status.style.color = '#64748b';
+    status.textContent = "Processing image...";
+
+    const img = await faceapi.bufferToImage(fileInput.files[0]);
+    const detection = await faceapi.detectSingleFace(img, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
+
+    if (!detection) {
+      status.style.color = '#dc2626';
+      status.textContent = "No face detected in the uploaded image. Upload a clearer picture.";
+      return;
+    }
+
+    const descriptorArray = Array.from(detection.descriptor);
+    socket.emit('set-invigilator-face', descriptorArray, (res) => {
+      if (res && res.success) {
+        status.style.color = '#16a34a';
+        status.textContent = "✅ Invigilator face registered and broadcasted to students!";
+      }
+    });
+  }
+
+  function clearInvigilatorFace() {
+    socket.emit('clear-invigilator-face', {}, (res) => {
+      document.getElementById('faceStatus').style.color = '#16a34a';
+      document.getElementById('faceStatus').textContent = "Cleared registered invigilator face.";
+    });
+  }
+
+  function startExamTimer() {
+    const minutes = parseInt(document.getElementById('timerMinutes').value.trim());
+    if (!minutes || minutes <= 0) {
+      alert("Enter a valid duration in minutes.");
+      return;
+    }
+    socket.emit('start-timer', minutes);
+    document.getElementById('timerStatus').style.color = '#16a34a';
+    document.getElementById('timerStatus').textContent = `Timer started for ${minutes} minutes across all student portals.`;
+  }
+
+  function addQuestion() {
+    const input = document.getElementById('questionInput');
+    const text = input.value.trim();
+    if (!text) return;
+    socket.emit('add-question', text);
+    input.value = '';
+  }
+
+  function deleteQuestion(id) {
+    socket.emit('delete-question', id);
+  }
+
+  socket.on('questions-updated', (questions) => {
+    const list = document.getElementById('questionsList');
+    if (!questions || questions.length === 0) {
+      list.innerHTML = '<p style="color:#94a3b8; font-style:italic;">No questions added yet.</p>';
+      return;
+    }
+    list.innerHTML = questions.map((q, i) => `
+      <div class="q-item">
+        <span><strong>Q${i+1}:</strong> ${q.text}</span>
+        <button class="btn btn-danger" onclick="deleteQuestion('${q._id}')">Delete</button>
+      </div>
+    `).join('');
+  });
+
+  socket.on('teacher-notification', (alertData) => {
+    const list = document.getElementById('notificationsList');
+    if (list.querySelector('p')) list.innerHTML = '';
+    const div = document.createElement('div');
+    div.className = 'alert-box';
+    div.innerHTML = `<strong>⚠️ Violation Detected!</strong><br>Student: ${alertData.student} (Reg: ${alertData.regNo})<br>Action: ${alertData.violation}<br><small>Timestamp: ${alertData.time}</small>`;
+    list.prepend(div);
+  });
+
+  socket.on('submissions-updated', (submissions) => {
+    const list = document.getElementById('submissionsList');
+    if (!submissions || submissions.length === 0) {
+      list.innerHTML = '<p style="color:#94a3b8; font-style:italic;">No submissions yet.</p>';
+      return;
+    }
+    list.innerHTML = submissions.map(s => `
+      <div class="sub-box">
+        <strong>🎓 ${s.student} (Reg: ${s.regNo})</strong> <small>Submitted at ${s.submittedAt}</small>
+        <hr style="border:0; border-top:1px solid #e2e8f0; margin:8px 0;">
+        ${s.answers.map(a => `<p><strong>Q:</strong> ${a.questionText}<br><strong>A:</strong> ${a.answerText || '<i>No answer</i>'}</p>`).join('')}
+      </div>
+    `).join('');
+  });
+</script>
+
 </body>
 </html>

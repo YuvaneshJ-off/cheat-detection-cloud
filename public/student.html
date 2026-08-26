@@ -50,7 +50,7 @@
       <span id="badgeName"></span>
       <span id="badgeReg"></span>
     </div>
-    
+
     <div id="examTimer" class="timer-badge">
       ⏱️ Overall Test Time Remaining: <span id="timerDisplay">Waiting for Teacher to start test...</span>
     </div>
@@ -80,6 +80,24 @@
     let noFaceStartTime = null;
     const NO_FACE_THRESHOLD_SECONDS = 15;
     const FACE_CHECK_INTERVAL_MS = 1500;
+
+    // ===== Invigilator face recognition support =====
+    let invigilatorDescriptor = null; // array of 128 numbers, or null
+
+    // Raised to 0.75: a static uploaded invigilator photo vs a live webcam
+    // face under different angle/lighting typically lands around 0.65-0.8
+    // distance even for the SAME person, so 0.6-0.62 was too strict and
+    // never matched. If you find it's now failing to catch a genuinely
+    // different second person, lower this back down (e.g. 0.68).
+    const INVIGILATOR_MATCH_THRESHOLD = 0.58;
+    const DEBUG_FACE_MATCH = true; // keep on for now so you can see distances in console
+
+    socket.on('invigilator-face-updated', (data) => {
+      invigilatorDescriptor = (data && Array.isArray(data.descriptor)) ? data.descriptor : null;
+      if (DEBUG_FACE_MATCH) {
+        console.log('[face-match] invigilator descriptor received:', invigilatorDescriptor ? ('length ' + invigilatorDescriptor.length) : 'null');
+      }
+    });
 
     let timerInterval = null;
     let totalTimeSeconds = 0;
@@ -128,7 +146,11 @@
       video.srcObject = cameraStream;
       await video.play();
 
-      await faceapi.nets.tinyFaceDetector.loadFromUri('https://vladmandic.github.io/face-api/model/');
+      const MODEL_URL = 'https://vladmandic.github.io/face-api/model/';
+      await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+      await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+      await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+
       startFaceDetectionLoop(video);
     }
 
@@ -138,12 +160,32 @@
 
         let detections;
         try {
-          detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions());
+          detections = await faceapi
+            .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
+            .withFaceLandmarks()
+            .withFaceDescriptors();
         } catch (e) {
           return;
         }
 
-        if (detections.length === 0) {
+        let effectiveFaces = detections;
+
+        if (DEBUG_FACE_MATCH) {
+          console.log('[face-match] raw faces detected this cycle:', detections.length);
+        }
+
+        if (invigilatorDescriptor && detections.length > 0) {
+          effectiveFaces = detections.filter(d => {
+            const distance = faceapi.euclideanDistance(d.descriptor, invigilatorDescriptor);
+            if (DEBUG_FACE_MATCH) {
+              console.log('[face-match] distance to invigilator:', distance.toFixed(3),
+                distance < INVIGILATOR_MATCH_THRESHOLD ? '-> MATCH (excluded)' : '-> different person (kept)');
+            }
+            return distance >= INVIGILATOR_MATCH_THRESHOLD;
+          });
+        }
+
+        if (effectiveFaces.length === 0) {
           if (!noFaceStartTime) noFaceStartTime = Date.now();
           const elapsedSeconds = (Date.now() - noFaceStartTime) / 1000;
           if (elapsedSeconds >= NO_FACE_THRESHOLD_SECONDS) {
@@ -151,8 +193,8 @@
             sendAlert("Camera: Face Not Detected 15s+");
             noFaceStartTime = Date.now();
           }
-        } else if (detections.length > 1) {
-          sendAlert("Camera: Multiple Faces Detected (" + detections.length + ")");
+        } else if (effectiveFaces.length > 1) {
+          sendAlert("Camera: Multiple Faces Detected (" + effectiveFaces.length + ")");
           noFaceStartTime = null;
         } else {
           noFaceStartTime = null;
@@ -211,7 +253,7 @@
     function updateTimerDisplay() {
       const mins = Math.floor(totalTimeSeconds / 60);
       const secs = totalTimeSeconds % 60;
-      document.getElementById('timerDisplay').textContent = 
+      document.getElementById('timerDisplay').textContent =
         `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
     }
 
